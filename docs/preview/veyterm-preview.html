@@ -1,252 +1,30 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VeyTerm · terminal workspace preview</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --void: #211f20;
-      --shell: #2a2728;
-      --surface: #2a2728;
-      --surface-2: #302c2c;
-      --surface-3: #3a3932;
-      --rule: #8e8175;
-      --text: #e8e1d8;
-      --muted: #b8aea3;
-      --dim: #857b72;
-      --cyan: #abb89b;
-      --violet: #abb89b;
-      --green: #abb89b;
-      --amber: #c78c5b;
-      --red: #c56b5f;
-      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --sans: var(--mono);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--void);
-      color: var(--text);
-      font: 13px/1.45 var(--sans);
-    }
-    button { color: inherit; font: inherit; }
-    .window {
-      width: min(1440px, calc(100vw - 36px));
-      min-height: min(900px, calc(100vh - 36px));
-      margin: 18px auto;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: 56px minmax(0, 1fr);
-      overflow: hidden;
-      border: 1px solid var(--rule);
-      border-radius: 2px;
-      background: var(--shell);
-      box-shadow: none;
-    }
-    .topbar {
-      grid-column: 1 / -1;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 0 16px 0 12px;
-      border-bottom: 1px solid var(--rule);
-      background: var(--surface);
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      min-width: 168px;
-      font-weight: 650;
-      letter-spacing: -.015em;
-    }
-    .mark {
-      display: grid;
-      width: 28px;
-      height: 28px;
-      place-items: center;
-      border: 1px solid var(--rule);
-      border-radius: 0;
-      color: var(--cyan);
-      background: var(--surface-2);
-      font: 700 14px var(--mono);
-    }
-    .brand small { display: block; margin-top: 1px; color: var(--dim); font: 10px var(--mono); letter-spacing: .08em; }
-    .session-switcher {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      min-width: 0;
-      padding: 3px;
-      border: 1px solid var(--rule);
-      border-radius: 0;
-      background: var(--surface);
-    }
-    .session-switcher button, .top-action {
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: var(--muted);
-      cursor: default;
-    }
-    .session-switcher button { padding: 6px 10px; white-space: nowrap; }
-    .session-switcher button.active { color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px #2d4658; }
-    .session-switcher em { color: var(--green); font-style: normal; font-size: 10px; }
-    .top-spacer { flex: 1; }
-    .top-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
-    .online { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px #abb89b99; }
-    .top-action { width: 40px; height: 28px; font: 10px var(--mono); letter-spacing: .08em; }
-    .top-action:hover { background: var(--surface-3); color: var(--text); }
-
-    .workspace {
-      grid-row: 2;
-      min-width: 0;
-      display: grid;
-      grid-template-rows: 42px minmax(0, 1fr) 58px;
-      background: var(--surface);
-    }
-    .workspace-head {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0 18px;
-      border-bottom: 1px solid var(--rule);
-      background: var(--surface);
-    }
-    .crumb { color: var(--text); font: 12px var(--mono); }
-    .crumb span { color: var(--dim); }
-    .head-badge { padding: 3px 7px; border: 1px solid var(--rule); border-radius: 0; color: var(--muted); font: 10px var(--mono); }
-    .head-badge.accent { border-color: var(--rule); color: var(--cyan); background: var(--surface-2); }
-    .head-actions { display: flex; gap: 8px; margin-left: auto; }
-    .head-actions button { width: 44px; height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font: 9px var(--mono); letter-spacing: .05em; }
-    .head-actions button:hover { background: var(--surface-3); color: var(--text); }
-    .terminal {
-      min-height: 0;
-      overflow: hidden;
-      padding: 24px 28px;
-      background: var(--void);
-      font: 13px/1.75 var(--mono);
-    }
-    .terminal-line { white-space: pre-wrap; }
-    .split-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; overflow: hidden; }
-    .split-view > .terminal + .terminal { border-left: 1px solid var(--rule); }
-    .terminal-line.muted { color: var(--dim); }
-    .terminal-line.output { color: var(--muted); }
-    .terminal-line.success { color: var(--green); }
-    .terminal-line.warn { color: var(--amber); }
-    .prompt { color: var(--violet); }
-    .user { color: var(--green); }
-    .path { color: var(--cyan); }
-    .command { color: var(--text); }
-    .cursor { display: inline-block; width: 7px; height: 16px; margin-left: 3px; vertical-align: -3px; background: var(--cyan); animation: blink 1.05s steps(1) infinite; }
-    @keyframes blink { 50% { opacity: 0; } }
-    .command-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      border-top: 1px solid var(--rule);
-      background: var(--surface);
-    }
-    .command-bar .prompt { padding-left: 4px; font: 16px var(--mono); }
-    .command-input {
-      flex: 1;
-      min-width: 0;
-      padding: 9px 11px;
-      border: 1px solid var(--rule);
-      border-radius: 0;
-      background: var(--surface);
-      color: var(--text);
-      font: 12px var(--mono);
-      box-shadow: none;
-    }
-    .command-input::placeholder { color: var(--dim); }
-    .key { padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; color: var(--dim); font: 10px var(--mono); }
-    .send { width: 48px; height: 32px; font: 10px var(--mono); letter-spacing: .08em; border: 1px solid var(--rule); border-radius: 0; background: var(--surface-2); color: var(--cyan); }
-
-    .note { width: min(1440px, calc(100vw - 36px)); margin: -2px auto 18px; color: #6f7e8d; font: 12px var(--sans); text-align: center; }
-    .status-label { color: var(--dim); font: 9px var(--mono); letter-spacing: .08em; white-space: nowrap; }
-    .note code { color: var(--cyan); font-family: var(--mono); }
-    @media (max-width: 980px) {
-      .window { grid-template-columns: minmax(0, 1fr); }
-      .brand { min-width: 120px; }
-      .session-switcher button:nth-child(n+2) { display: none; }
-    }
-    @media (max-width: 620px) {
-      .window { width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: 52px minmax(0, 1fr); }
-      .topbar { padding-right: 8px; gap: 6px; }
-      .brand { min-width: 32px; }
-      .brand > div:last-child, .session-switcher, .top-meta { display: none; }
-      .split-view { grid-template-columns: minmax(0, 1fr); overflow: auto; }
-      .split-view > .terminal + .terminal { border-top: 1px solid var(--rule); border-left: 0; }
-      .terminal { padding: 18px 15px; font-size: 11px; }
-      .workspace-head { padding: 0 12px; }
-      .command-bar { padding: 8px 10px; }
-      .key, .status-label { display: none; }
-      .note { display: none; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeyTerm terminal</title>
+<style>
+:root{color-scheme:dark;--bg:#211f20;--panel:#2a2728;--rule:#8e8175;--ink:#d8d0c7;--muted:#aaa095;--dim:#766d66;--sage:#abb89b;--orange:#c78c5b;--red:#b9695d;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:12px/1.5 var(--mono)}body{display:flex;flex-direction:column;min-height:100vh}.topbar{height:32px;display:flex;align-items:center;gap:18px;padding:0 12px;border-bottom:1px solid var(--rule);background:var(--panel);white-space:nowrap}.title{color:var(--sage);letter-spacing:.05em}.tabs{display:flex;align-items:center;gap:0;height:100%}.tab{height:100%;display:flex;align-items:center;padding:0 12px;color:var(--dim);border-left:1px solid transparent;border-right:1px solid transparent}.tab.active{color:var(--ink);background:var(--bg);border-color:var(--rule)}.tab em{margin-right:7px;color:var(--sage);font-style:normal}.topmeta{display:flex;align-items:center;gap:16px;margin-left:auto;color:var(--dim);font-size:11px}.topmeta b{color:var(--sage);font-weight:400}.panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);flex:1;min-height:0}.pane{min-width:0;min-height:0;overflow:hidden;padding:18px 20px 14px;background:var(--bg)}.pane+ .pane{border-left:1px solid var(--rule)}.pane-head{height:20px;margin-bottom:10px;color:var(--dim);font-size:11px}.pane-head b{color:var(--sage);font-weight:400}.terminal{white-space:pre-wrap;font:12px/1.58 var(--mono)}.line{min-height:1.58em}.prompt{color:var(--sage)}.command{color:var(--ink)}.muted{color:var(--dim)}.out{color:var(--muted)}.ok{color:var(--sage)}.warn{color:var(--orange)}.err{color:var(--red)}.diff-add{color:var(--sage);background:#34392f}.diff-del{color:var(--red);background:#392b29}.fetch{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}.logo{margin:0;color:var(--sage);font:700 18px/1.04 var(--mono);white-space:pre}.fetch-info{min-width:0}.fetch-group{margin:0 0 16px;padding-bottom:8px;border-bottom:1px solid var(--rule)}.fetch-group:last-child{border-bottom:0}.fetch-group h2{margin:0 0 5px;color:var(--dim);font:11px var(--mono);font-weight:400;letter-spacing:.08em}.fetch-row{display:flex;gap:12px;min-height:1.55em}.fetch-row b{width:76px;color:var(--sage);font-weight:400}.fetch-row span{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.commandbar{height:38px;display:flex;align-items:center;gap:10px;padding:0 14px;border-top:1px solid var(--rule);background:var(--panel)}.commandbar .prompt{font-size:15px}.input{flex:1;min-width:0;padding:3px 0;border:0;border-bottom:1px solid var(--rule);outline:0;background:transparent;color:var(--ink);font:11px var(--mono)}.input::placeholder{color:var(--dim)}.status{display:flex;gap:14px;color:var(--dim);font-size:10px;white-space:nowrap}.status b{color:var(--sage);font-weight:400}.status .warn{color:var(--orange)}@media(max-width:900px){.fetch{grid-template-columns:1fr}.logo{font-size:12px}.pane{padding:14px}.terminal{font-size:11px}}@media(max-width:620px){.topbar{gap:8px;padding:0 8px}.title{display:none}.tab{padding:0 7px}.topmeta span{display:none}.panes{grid-template-columns:1fr;overflow:auto}.pane+ .pane{border-left:0;border-top:1px solid var(--rule)}.fetch{grid-template-columns:180px 1fr}.logo{font-size:9px}.commandbar{height:36px;padding:0 8px}.status{gap:7px}.status span:nth-child(2){display:none}}
+</style>
 </head>
 <body>
-  <main class="window" aria-label="VeyTerm terminal workspace preview">
-    <header class="topbar">
-      <div class="brand"><div class="mark">$_</div><div>VeyTerm<small>ANDROID TERMINAL</small></div></div>
-      <div class="session-switcher" aria-label="sessions"><button class="active"><em>RUN</em>&nbsp; local</button><button>build</button><button>logs</button></div>
-      <div class="top-spacer"></div>
-      <div class="top-meta"><span class="online"></span><span>LOCAL</span><span>09:41</span></div>
-      <button class="top-action" aria-label="new session">NEW</button><button class="top-action" aria-label="settings">SET</button>
-    </header>
-
-    <section class="workspace">
-      <div class="workspace-head">
-        <div class="crumb"><span>~</span> / workspace</div><span class="head-badge accent">zsh</span><span class="head-badge">pacman</span>
-        <div class="head-actions"><button aria-label="split">SPLIT</button><button aria-label="clear">CLR</button><button aria-label="more">MORE</button></div>
-      </div>
-      <div class="split-view">
-      <div class="terminal">
-        <div class="terminal-line muted">VeyTerm shell · Linux view · Android sandbox boundary visible</div>
-        <br>
-        <div class="terminal-line"><span class="prompt">╭─</span> <span class="user">user@veyterm</span> <span class="path">~/workspace</span></div>
-        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">sudo pacman -S paru</span></div>
-        <div class="terminal-line output">resolving dependencies · checking keyring · syncing main</div>
-        <div class="terminal-line success">ok paru shim ready · AUR remains explicitly disabled by default</div>
-        <br>
-        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">mcp tools</span></div>
-        <div class="terminal-line output">filesystem.read&nbsp;&nbsp; git.status&nbsp;&nbsp; browser.open <span class="permission">[read-only]</span></div>
-        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">skill run repo-review</span></div>
-        <div class="terminal-line output">skill: repo-review · permission: read-only · worker: ready</div>
-        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">ls -la /etc /usr/bin</span></div>
-        <div class="terminal-line output">drwxr-xr-x root root&nbsp;&nbsp; /etc</div>
-        <div class="terminal-line output">lrwxrwxrwx root root&nbsp;&nbsp; /usr/bin/zsh → /usr/bin/zsh</div>
-        <br>
-        <div class="terminal-line"><span class="prompt">╭─</span> <span class="user">user@veyterm</span> <span class="path">~/workspace</span></div>
-        <div class="terminal-line"><span class="prompt">╰─❯</span><span class="cursor"></span></div>
-      </div>
-      <div class="terminal">
-        <div class="terminal-line muted">fastfetch · Linux user view</div>
-        <br>
-        <div class="terminal-line"><span class="user">VeyTerm</span> Android terminal</div>
-        <div class="terminal-line output">OS        Android / Linux userland</div>
-        <div class="terminal-line output">Shell     zsh 5.x</div>
-        <div class="terminal-line output">Packages  pacman · paru ready</div>
-        <div class="terminal-line output">Prefix    /usr  (private path hidden)</div>
-        <div class="terminal-line output">Session   local · foreground</div>
-        <br>
-        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">ls -la /etc /usr/bin</span></div>
-        <div class="terminal-line output">drwxr-xr-x root root  /etc</div>
-        <div class="terminal-line output">drwxr-xr-x root root  /usr/bin</div>
-        <div class="terminal-line output">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div>
-        <div class="terminal-line output">-rwxr-xr-x root root  /usr/bin/pacman</div>
-        <br>
-        <div class="terminal-line"><span class="prompt">╰─❯</span><span class="cursor"></span></div>
-      </div>
-      </div>
-      <div class="command-bar"><span class="prompt">&gt;</span><input class="command-input" aria-label="command input" placeholder="Run a command or ask VeyTerm AI…"><span class="status-label">MCP OFF</span><span class="status-label">SKILLS 2</span><span class="status-label">FILES ~</span><span class="key">CTRL K</span><button class="send" aria-label="send">SEND</button></div>
-    </section>
-  </main>
-  <p class="note">预览稿：双终端窗格保持唯一主角；顶部标签切换会话，MCP、Skills、Files 只在命令和底部状态条出现。</p>
+<header class="topbar"><span class="title">VeyTerm</span><nav class="tabs" aria-label="terminal sessions"><span class="tab active"><em>1</em>local</span><span class="tab"><em>2</em>build</span><span class="tab"><em>3</em>logs</span></nav><div class="topmeta"><span>zsh</span><span>pacman</span><b>LOCAL</b><span>09:41</span></div></header>
+<main class="panes" aria-label="two terminal panes">
+<section class="pane" aria-label="command transcript"><div class="pane-head"><b>~/Documents/GITHUB/VeyTerm</b> · git transcript</div><div class="terminal">
+<div class="line"><span class="prompt">$</span> <span class="command">git status --short</span></div><div class="line out"> M app/src/main/res/layout/activity_termux.xml</div><div class="line out"> M app/src/main/res/values/colors.xml</div><div class="line out">?? docs/preview/veyterm-preview.html</div><div class="line"><span class="prompt">$</span> <span class="command">git diff -- app/src/main/assets/bootstrap/pacman-android-7.manifest</span></div><div class="line muted">diff --git a/.../pacman-android-7.manifest b/.../pacman-android-7.manifest</div><div class="line diff-del">-source_status=blocked-until-arch-bootstrap-published</div><div class="line diff-add">+source_status=experimental-release-v0.118.0-veyterm-pacman</div><div class="line diff-add">+signature_provenance=sha256-verified-test-release;independent-signing-pending</div><div class="line"><span class="prompt">$</span> <span class="command">git log -1 --oneline</span></div><div class="line out">34e20c9a feat: simplify warm session chrome</div><br>
+<div class="line"><span class="prompt">$</span> <span class="command">mcp tools</span></div><div class="line out">filesystem.read   git.status   browser.open <span class="ok">[read-only]</span></div><div class="line"><span class="prompt">$</span> <span class="command">skill run repo-review</span></div><div class="line out">skill: repo-review · permission: read-only · worker: ready</div><div class="line"><span class="prompt">$</span> <span class="command">ls -la /etc /usr/bin</span></div><div class="line out">drwxr-xr-x root root  /etc</div><div class="line out">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div><br>
+<div class="line"><span class="prompt">$</span> <span class="command">./gradlew :app:assembleDebug</span></div><div class="line out">BUILD SUCCESSFUL · 120 actionable tasks · 18s</div><div class="line ok">apk: com.veyterm · arm64-v8a / armeabi-v7a / x86 / x86_64</div><br><div class="line"><span class="prompt">$</span> <span class="command">_</span></div>
+</div></section>
+<section class="pane" aria-label="fastfetch and Linux file view"><div class="pane-head"><b>~/workspace</b> · linux user view</div><div class="terminal"><div class="line"><span class="prompt">$</span> <span class="command">fastfetch</span></div><br><div class="fetch"><pre class="logo">   __   __
+  / /  / /
+ / /__/ /
+/____  /
+    / /
+   /_/</pre><div class="fetch-info"><section class="fetch-group"><h2>System</h2><div class="fetch-row"><b>OS</b><span>Android / Linux userland</span></div><div class="fetch-row"><b>Host</b><span>VeyTerm native terminal</span></div><div class="fetch-row"><b>Kernel</b><span>Android kernel · aarch64</span></div><div class="fetch-row"><b>Uptime</b><span>1 day, 04 hours</span></div></section><section class="fetch-group"><h2>Software</h2><div class="fetch-row"><b>Shell</b><span>zsh 5.x</span></div><div class="fetch-row"><b>Packages</b><span>pacman · paru</span></div><div class="fetch-row"><b>Terminal</b><span>VeyTerm / libtermux</span></div><div class="fetch-row"><b>Font</b><span>JetBrains Mono</span></div></section></div></div><br>
+<div class="line"><span class="prompt">$</span> <span class="command">ls -la /etc /usr/bin</span></div><div class="line out">drwxr-xr-x root root  /etc</div><div class="line out">drwxr-xr-x root root  /usr/bin</div><div class="line out">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div><div class="line out">-rwxr-xr-x root root  /usr/bin/pacman</div><div class="line out">-rwxr-xr-x root root  /usr/bin/paru</div><br><div class="line"><span class="prompt">$</span> <span class="command">_</span></div></div></section>
+</main>
+<footer class="commandbar"><span class="prompt">$</span><input class="input" aria-label="command input" placeholder="command or ask VeyTerm AI"><div class="status"><span>MCP <b>off</b></span><span>skills <b>2</b></span><span>files <b>~</b></span><span class="warn">sudo <b>probe unavailable</b></span></div></footer>
 </body>
 </html>
