@@ -2,6 +2,8 @@ plugins {
     id "com.android.application"
 }
 
+apply plugin: "org.jetbrains.kotlin.android"
+
 ext {
     // The packageVariant defines the bootstrap variant that will be included in the app APK.
     // This must be supported by com.termux.shared.termux.TermuxBootstrap.PackageVariant or app will
@@ -105,6 +107,10 @@ android {
 
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 
     externalNativeBuild {
@@ -242,4 +248,43 @@ afterEvaluate {
     android.applicationVariants.all { variant ->
         variant.javaCompileProvider.get().dependsOn(downloadBootstraps)
     }
+}
+
+// Rust is opt-in until release builders provision cargo-ndk and all four
+// Android standard-library targets. The default APK remains ndk-build-only;
+// enabling this flag packages the versioned Rust JNI probe as well.
+def rustCoreEnabled = (System.getenv("VEYTERM_BUILD_RUST_CORE") ?: "0") == "1" ||
+    project.findProperty("veytermRustCore")?.toString() == "true"
+def rustCoreDirectory = file("../rust-core")
+def rustCoreJniLibsDirectory = file("$buildDir/generated/rust/jniLibs")
+
+tasks.register("buildRustCore", Exec) {
+    group = "build"
+    description = "Build the optional Rust core JNI library for all release ABIs."
+    workingDir rustCoreDirectory
+
+    def sdkDirectory = android.sdkDirectory
+    def ndkDirectory = new File(sdkDirectory, "ndk/" + android.ndkVersion)
+    environment "ANDROID_HOME", sdkDirectory.absolutePath
+    environment "ANDROID_SDK_ROOT", sdkDirectory.absolutePath
+    environment "ANDROID_NDK_HOME", ndkDirectory.absolutePath
+    environment "ANDROID_NDK_ROOT", ndkDirectory.absolutePath
+
+    commandLine "cargo", "ndk",
+        "-t", "arm64-v8a",
+        "-t", "armeabi-v7a",
+        "-t", "x86",
+        "-t", "x86_64",
+        "-o", rustCoreJniLibsDirectory.absolutePath,
+        "build", "--release", "--locked"
+
+    inputs.file(file("$rustCoreDirectory/Cargo.toml"))
+    inputs.file(file("$rustCoreDirectory/Cargo.lock"))
+    inputs.dir(file("$rustCoreDirectory/src"))
+    outputs.dir(rustCoreJniLibsDirectory)
+}
+
+if (rustCoreEnabled) {
+    android.sourceSets.main.jniLibs.srcDir(rustCoreJniLibsDirectory)
+    tasks.named("preBuild").configure { dependsOn(tasks.named("buildRustCore")) }
 }

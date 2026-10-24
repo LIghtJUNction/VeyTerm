@@ -1,0 +1,12 @@
+[package]
+name = "veyterm-core"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Small Rust ABI boundary for the VeyTerm native core"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"

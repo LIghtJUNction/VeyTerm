@@ -52,30 +52,31 @@ public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession
             return sessionRowView;
         }
 
-        boolean isCurrentSession = sessionAtRow == mActivity.getCurrentSession();
-        boolean isRunning = sessionAtRow.isRunning();
-        int exitStatus = sessionAtRow.getExitStatus();
-
         String name = sessionAtRow.mSessionName;
         String sessionTitle = sessionAtRow.getTitle();
-        String displayName = TextUtils.isEmpty(name)
-            ? mActivity.getString(R.string.terminal_header_local_shell) + " " + (position + 1)
-            : name;
-        String detail = isRunning
-            ? (TextUtils.isEmpty(sessionTitle) ? mActivity.getString(R.string.terminal_session_detail_running) : sessionTitle)
-            : mActivity.getString(R.string.terminal_session_detail_exited, exitStatus);
+        boolean isCurrentSession = sessionAtRow == mActivity.getCurrentSession();
+        SessionPresentation presentation = SessionPresentationResolver.resolve(
+            position,
+            name,
+            sessionTitle,
+            sessionAtRow.isRunning(),
+            sessionAtRow.getExitStatus(),
+            mActivity.getString(R.string.terminal_header_local_shell),
+            mActivity.getString(R.string.terminal_session_detail_running),
+            mActivity.getString(R.string.terminal_session_detail_exited));
 
         sessionRow.setActivated(isCurrentSession);
-        sessionTitleView.setText(displayName);
+        sessionTitleView.setText(presentation.getDisplayName());
         sessionTitleView.setTextColor(ContextCompat.getColor(mActivity, R.color.vey_text_primary));
-        sessionDetailView.setText(detail);
-        sessionDetailView.setTextColor(ContextCompat.getColor(mActivity, isRunning ? R.color.vey_text_secondary :
-            (exitStatus == 0 ? R.color.vey_text_muted : R.color.vey_error)));
+        sessionDetailView.setText(presentation.getDetail());
+        sessionDetailView.setTextColor(ContextCompat.getColor(mActivity,
+            presentation.getStatus() == SessionPresentationStatus.RUNNING ? R.color.vey_text_secondary :
+                (presentation.getStatus() == SessionPresentationStatus.EXITED ? R.color.vey_text_muted : R.color.vey_error)));
 
-        int statusDrawable = isRunning ? R.drawable.session_status_running :
-            (exitStatus == 0 ? R.drawable.session_status_stopped : R.drawable.session_status_error);
+        int statusDrawable = presentation.getStatus() == SessionPresentationStatus.RUNNING ? R.drawable.session_status_running :
+            (presentation.getStatus() == SessionPresentationStatus.EXITED ? R.drawable.session_status_stopped : R.drawable.session_status_error);
         statusIndicator.setBackgroundResource(statusDrawable);
-        sessionRow.setContentDescription(displayName + ", " + detail);
+        sessionRow.setContentDescription(presentation.getDisplayName() + ", " + presentation.getDetail());
         return sessionRowView;
     }
 

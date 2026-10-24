@@ -11,6 +11,9 @@ release/
 .cxx
 *.zip
 
+# Rust build artifacts
+rust-core/target/
+
 # Local configuration file (sdk path, etc)
 local.properties
 
