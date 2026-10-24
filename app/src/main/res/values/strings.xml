@@ -56,6 +56,7 @@
 
     <string name="action_open_sessions">Open sessions</string>
     <string name="terminal_header_local_shell">LOCAL SHELL</string>
+    <string name="terminal_workspace_sections">SESSIONS  ·  MCP  ·  SKILLS  ·  FILES</string>
     <string name="terminal_header_running">RUNNING</string>
     <string name="terminal_header_exited">EXITED</string>
     <string name="terminal_session_detail_running">Active shell</string>

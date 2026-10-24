@@ -52,8 +52,12 @@ public abstract class UnixShellEnvironment implements IShellEnvironment {
     public static final String ENV_TMPDIR = "TMPDIR";
 
 
-    /** Names for common/supported login shell binaries. */
-    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"login", "bash", "zsh", "fish", "sh"};
+    /**
+     * Names for supported login shell binaries. VeyTerm prefers zsh for the
+     * interactive experience and falls back to bash when zsh is unavailable.
+     * Keep this order aligned with app/src/main/.../ShellLaunchPolicy.kt.
+     */
+    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"zsh", "bash", "fish", "sh"};
 
 
 

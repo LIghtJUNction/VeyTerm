@@ -1,0 +1,17 @@
+# VeyTerm PACMAN_ANDROID_7 bootstrap contract (design manifest)
+# This file is not an installable archive. The variant stays disabled until a
+# reproducible Arch/Termux packages source publishes all four signed ABIs.
+variant=pacman-android-7
+manager=pacman
+package_format=pkg.tar.zst
+prefix=/data/data/com.veyterm/files/usr
+signature_policy=required
+keyring=archlinux-keyring
+repository_sync=required-after-first-launch
+aur_default=disabled
+aur_build_user=ordinary-user
+required_packages=pacman,paru,sudo,base-devel,git,ca-certificates,archlinux-keyring,openssl,curl,zstd,fakeroot
+required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo
+required_build_tools=base-devel,git,ca-certificates,openssl,zstd,fakeroot
+rollback=stage-prefix-then-atomic-rename
+source_status=blocked-until-arch-bootstrap-published

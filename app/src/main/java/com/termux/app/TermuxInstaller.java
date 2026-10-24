@@ -25,9 +25,12 @@ import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -35,6 +38,7 @@ import java.util.zip.ZipInputStream;
 
 import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR;
 import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH;
+import static com.termux.shared.termux.TermuxConstants.TERMUX_HOME_DIR_PATH;
 import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR;
 import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH;
 
@@ -107,6 +111,10 @@ final class TermuxInstaller {
             if (TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
                 Logger.logInfo(LOG_TAG, "The termux prefix directory \"" + TERMUX_PREFIX_DIR_PATH + "\" exists but is empty or only contains specific unimportant files.");
             } else {
+                // Existing installations also receive the dependency-free shell
+                // defaults and bounded sudo shim. Existing user files and a real
+                // package-provided sudo are never overwritten.
+                installDefaultShellConfigs(activity);
                 whenDone.run();
                 return;
             }
@@ -220,6 +228,10 @@ final class TermuxInstaller {
 
                     // Recreate env file since termux prefix was wiped earlier
                     TermuxShellEnvironment.writeEnvironmentToFile(activity);
+
+                    // Install small, offline defaults only when the user has not
+                    // created a shell configuration yet. Never overwrite user files.
+                    installDefaultShellConfigs(activity);
 
                     activity.runOnUiThread(whenDone);
 
@@ -373,6 +385,55 @@ final class TermuxInstaller {
 
     private static Error ensureDirectoryExists(File directory) {
         return FileUtils.createDirectoryFile(directory.getAbsolutePath());
+    }
+
+    private static void installDefaultShellConfigs(Activity activity) {
+        installDefaultShellConfig(activity, "shell/veyterm.zshrc", TERMUX_HOME_DIR_PATH + "/.zshrc");
+        installDefaultShellConfig(activity, "shell/veyterm.bashrc", TERMUX_HOME_DIR_PATH + "/.bashrc");
+        installDefaultExecutable(activity, "shell/veyterm-sudo", TERMUX_PREFIX_DIR_PATH + "/bin/sudo");
+    }
+
+    private static void installDefaultShellConfig(Activity activity, String assetPath, String targetPath) {
+        File target = new File(targetPath);
+        if (target.exists()) return;
+
+        try (InputStream input = activity.getAssets().open(assetPath);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            Error error = FileUtils.writeTextToFile("VeyTerm shell defaults", targetPath,
+                Charset.forName("UTF-8"), output.toString("UTF-8"), false);
+            if (error != null) Logger.logErrorExtended(LOG_TAG, error.toString());
+        } catch (Exception e) {
+            // A shell config is an enhancement; bootstrap remains usable if it cannot be written.
+            Logger.logErrorExtended(LOG_TAG, "Unable to install default shell config " + assetPath + "\n" +
+                Logger.getStackTracesMarkdownString(null, Logger.getStackTracesStringArray(e)));
+        }
+    }
+
+    private static void installDefaultExecutable(Activity activity, String assetPath, String targetPath) {
+        File target = new File(targetPath);
+        if (target.exists()) return;
+
+        try (InputStream input = activity.getAssets().open(assetPath);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            Error error = FileUtils.writeTextToFile("VeyTerm sudo shim", targetPath,
+                Charset.forName("UTF-8"), output.toString("UTF-8"), false);
+            if (error != null) {
+                Logger.logErrorExtended(LOG_TAG, error.toString());
+                return;
+            }
+            if (!target.setExecutable(true, false)) {
+                Logger.logErrorExtended(LOG_TAG, "Unable to mark sudo shim executable: " + targetPath);
+            }
+        } catch (Exception e) {
+            Logger.logErrorExtended(LOG_TAG, "Unable to install default executable " + assetPath + "\n" +
+                Logger.getStackTracesMarkdownString(null, Logger.getStackTracesStringArray(e)));
+        }
     }
 
     public static byte[] loadZipBytes() {

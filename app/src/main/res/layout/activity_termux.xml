@@ -11,24 +11,21 @@
     <LinearLayout
         android:id="@+id/terminal_header"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginTop="4dp"
+        android:layout_height="52dp"
         android:background="@drawable/veyterm_header_background"
-        android:elevation="2dp"
+        android:elevation="0dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp">
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp">
 
         <ImageButton
             android:id="@+id/drawer_toggle_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="52dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/action_open_sessions"
-            android:padding="12dp"
+            android:padding="10dp"
             android:src="@drawable/ic_menu" />
 
         <LinearLayout
@@ -48,7 +45,7 @@
                 android:maxLines="1"
                 android:text="@string/application_name"
                 android:textColor="@color/vey_text_primary"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -56,7 +53,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans"
-                android:letterSpacing="0.08"
+                android:letterSpacing="0.12"
                 android:maxLines="1"
                 android:text="@string/terminal_header_local_shell"
                 android:textColor="@color/vey_text_secondary"
@@ -67,25 +64,25 @@
             android:id="@+id/terminal_header_status"
             android:layout_width="10dp"
             android:layout_height="10dp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="2dp"
             android:background="@drawable/session_status_stopped" />
 
         <ImageButton
             android:id="@+id/top_new_session_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="52dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/action_new_session"
-            android:padding="12dp"
+            android:padding="10dp"
             android:src="@drawable/ic_add" />
 
         <ImageButton
             android:id="@+id/top_settings_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="52dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/action_open_settings"
-            android:padding="12dp"
+            android:padding="10dp"
             android:src="@drawable/ic_settings"
             app:tint="@color/vey_text_primary" />
     </LinearLayout>
@@ -132,7 +129,7 @@
 
             <LinearLayout
                 android:id="@+id/left_drawer"
-                android:layout_width="304dp"
+                android:layout_width="288dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
                 android:background="?attr/termuxActivityDrawerBackground"
@@ -141,13 +138,14 @@
                 android:descendantFocusability="blocksDescendants"
                 android:elevation="12dp"
                 android:orientation="vertical"
-                android:padding="12dp">
+                android:padding="0dp">
 
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="58dp"
+                    android:layout_margin="8dp"
                     android:background="@drawable/veyterm_drawer_header_background"
-                    android:paddingStart="16dp"
+                    android:paddingStart="14dp"
                     android:paddingEnd="4dp">
 
                     <LinearLayout
@@ -171,7 +169,7 @@
                             android:layout_height="wrap_content"
                             android:fontFamily="sans"
                             android:letterSpacing="0.12"
-                            android:text="SESSIONS"
+                            android:text="@string/terminal_workspace_sections"
                             android:textColor="@color/vey_text_secondary"
                             android:textSize="10sp" />
                     </LinearLayout>
@@ -188,29 +186,96 @@
                         app:tint="?attr/termuxActivityDrawerImageTint" />
                 </FrameLayout>
 
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:overScrollMode="never"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/workspace_scope_tabs"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/workspace_scope_sessions"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="SESSIONS"
+                            android:textColor="@color/vey_accent"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/workspace_scope_mcp"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="MCP"
+                            android:textColor="@color/vey_text_muted"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/workspace_scope_skills"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="SKILLS"
+                            android:textColor="@color/vey_text_muted"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/workspace_scope_files"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="FILES"
+                            android:textColor="@color/vey_text_muted"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+
                 <ListView
                     android:id="@+id/terminal_sessions_list"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:choiceMode="singleChoice"
                     android:clipToPadding="false"
                     android:divider="@android:color/transparent"
-                    android:dividerHeight="8dp"
+                    android:dividerHeight="2dp"
                     android:longClickable="true"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="4dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="8dp"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/toggle_keyboard_button"
                         style="@style/VeyTermDrawerActionButton"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
                         android:text="@string/action_toggle_soft_keyboard" />
 
@@ -218,7 +283,7 @@
                         android:id="@+id/new_session_button"
                         style="@style/VeyTermDrawerActionButton"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_marginStart="8dp"
                         android:layout_weight="1"
                         android:text="@string/action_new_session" />
@@ -231,8 +296,8 @@
             android:layout_width="match_parent"
             android:layout_height="37.5dp"
             android:layout_alignParentBottom="true"
-            android:background="@color/vey_surface_panel"
-            android:elevation="4dp"
+            android:background="@color/vey_surface_elevated"
+            android:elevation="0dp"
             android:visibility="gone" />
     </RelativeLayout>
 

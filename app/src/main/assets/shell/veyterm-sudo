@@ -1,0 +1,19 @@
+#!/system/bin/sh
+# VeyTerm's bounded sudo shim.
+# Android's app sandbox cannot grant itself root. On a rooted device this
+# delegates to a working su provider; otherwise it fails with an actionable
+# message instead of pretending that a normal app permission is elevation.
+
+if [ "$(id -u 2>/dev/null)" = "0" ]; then
+  exec "$@"
+fi
+
+if command -v su >/dev/null 2>&1; then
+  if [ "$#" -eq 0 ]; then
+    exec su
+  fi
+  exec su -c "$*"
+fi
+
+echo "VeyTerm: sudo needs a rooted device with a working su provider; this app is sandboxed." >&2
+exit 126
