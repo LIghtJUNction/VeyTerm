@@ -239,7 +239,7 @@ task downloadBootstraps() {
             downloadBootstrap("i686", "46dcfeb5eef67ba765498db9fe4c50dc4690805139aa0dd141a9d8ee0693cd27", version)
             downloadBootstrap("x86_64", "615b590679ee6cd885b7fd2ff9473c845e920f9b422f790bb158c63fe42b8481", version)
         } else if (packageVariant == "pacman-android-7") {
-            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "bootstrap-veyterm-pacman-0.1.0"
+            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "v0.118.0-veyterm-pacman"
             // These checksums identify the reproducibly generated four-ABI
             // archives. The package repository keyring remains part of the
             // bootstrap; publication still requires an independent release
