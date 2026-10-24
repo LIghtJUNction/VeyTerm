@@ -1,0 +1,113 @@
+diff --git i/scripts/generate-bootstraps.sh w/scripts/generate-bootstraps.sh
+index 825f2a8..7a0e93c 100755
+--- i/scripts/generate-bootstraps.sh
++++ w/scripts/generate-bootstraps.sh
+@@ -49,6 +49,11 @@ for cmd in ar awk curl grep gzip find sed tar xargs xz zip jq; do
+ 	fi
+ done
+ 
++# The package mirror occasionally advertises an IPv6 route that accepts the
++# socket but never returns bytes in CI/container networks. Keep downloads
++# bounded and prefer IPv4; retries make a transient mirror failure harmless.
++CURL_RETRY_ARGS=(--ipv4 --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 300)
++
+ # Download package lists from remote repository.
+ # Actually, there 2 lists can be downloaded: one architecture-independent and
+ # one for architecture specified as '$1' argument. That depends on repository.
+@@ -59,7 +64,7 @@ read_package_list_deb() {
+ 	for architecture in all "$1"; do
+ 		if [ ! -e "${BOOTSTRAP_TMPDIR}/packages.${architecture}" ]; then
+ 			echo "[*] Downloading package list for architecture '${architecture}'..."
+-			if ! curl --fail --location \
++			if ! curl "${CURL_RETRY_ARGS[@]}" --fail --location \
+ 				--output "${BOOTSTRAP_TMPDIR}/packages.${architecture}" \
+ 				"${REPO_BASE_URL}/dists/stable/main/binary-${architecture}/Packages"; then
+ 				if [ "$architecture" = "all" ]; then
+@@ -97,7 +102,7 @@ read_package_list_deb() {
+ download_db_packages_pac() {
+ 	if [ ! -e "${PATH_DB_PACKAGES}" ]; then
+ 		echo "[*] Downloading package list for architecture '${package_arch}'..."
+-		curl --fail --location \
++		curl "${CURL_RETRY_ARGS[@]}" --fail --location \
+ 			--output "${PATH_DB_PACKAGES}" \
+ 			"${REPO_BASE_URL}/${package_arch}/main.json"
+ 	fi
+@@ -146,7 +151,7 @@ pull_package() {
+ 
+ 		if [ ! -e "$package_tmpdir/package.deb" ]; then
+ 			echo "[*] Downloading '$package_name'..."
+-			curl --fail --location --output "$package_tmpdir/package.deb" "$package_url"
++			curl "${CURL_RETRY_ARGS[@]}" --fail --location --output "$package_tmpdir/package.deb" "$package_url"
+ 
+ 			echo "[*] Extracting '$package_name'..."
+ 			(cd "$package_tmpdir"
+@@ -216,7 +221,7 @@ pull_package() {
+ 		if [ ! -e "$package_tmpdir/package.pkg.tar.xz" ]; then
+ 			echo "[*] Downloading '$package_name'..."
+ 			local package_filename=$(read_db_packages_pac "FILENAME")
+-			curl --fail --location --output "$package_tmpdir/package.pkg.tar.xz" "${REPO_BASE_URL}/${package_arch}/${package_filename}"
++			curl "${CURL_RETRY_ARGS[@]}" --fail --location --output "$package_tmpdir/package.pkg.tar.xz" "${REPO_BASE_URL}/${package_arch}/${package_filename}"
+ 
+ 			echo "[*] Extracting '$package_name'..."
+ 			(cd "$package_tmpdir"
+@@ -224,8 +229,22 @@ pull_package() {
+ 				mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/var/lib/pacman/local/${package_desc}"
+ 				{
+ 					echo "%FILES%"
+-					tar xvf package.pkg.tar.xz -C "$BOOTSTRAP_ROOTFS" .INSTALL .MTREE data 2> /dev/null | grep '^data/' || true
++					tar xvf package.pkg.tar.xz -C "$BOOTSTRAP_ROOTFS" .INSTALL .MTREE data 2> /dev/null |
++					sed "s#data/data/com.termux#${TERMUX_APP__DATA_DIR#/}#g" | grep '^data/' || true
+ 				} >> "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/var/lib/pacman/local/${package_desc}/files"
++				# Published Termux-Pacman archives still carry the upstream
++				# com.termux app-data prefix. Relocate payloads at bootstrap
++				# generation time so VeyTerm never installs files into another
++				# package's private directory.
++				local upstream_prefix="${BOOTSTRAP_ROOTFS}/data/data/com.termux/files/usr"
++				local veyterm_prefix="${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}"
++				if [ -d "$upstream_prefix" ]; then
++					mkdir -p "$veyterm_prefix"
++					cp -a "$upstream_prefix"/. "$veyterm_prefix"/
++					# Keep the VeyTerm metadata directory under the target
++					# prefix; remove only the upstream package payload.
++					rm -rf "${BOOTSTRAP_ROOTFS}/data/data/com.termux"
++				fi
+ 				mv "${BOOTSTRAP_ROOTFS}/.MTREE" "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/var/lib/pacman/local/${package_desc}/mtree"
+ 				if [ -f "${BOOTSTRAP_ROOTFS}/.INSTALL" ]; then
+ 					mv "${BOOTSTRAP_ROOTFS}/.INSTALL" "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/var/lib/pacman/local/${package_desc}/install"
+@@ -265,6 +284,8 @@ add_termux_bootstrap_second_stage_files() {
+ 	chmod 700 "${BOOTSTRAP_ROOTFS}/${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}/$TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_ENTRY_POINT_SUBFILE"
+ 
+ 	# TODO: Remove it when Termux app supports `pacman` bootstraps installation.
++	# Minimal pacman closures may not ship profile.d yet.
++	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX__PREFIX__PROFILE_D_DIR}"
+ 	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
+ 		-e "s|@TERMUX__PREFIX__PROFILE_D_DIR@|${TERMUX__PREFIX__PROFILE_D_DIR}|g" \
+ 		-e "s|@TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR@|${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}|g" \
+@@ -496,6 +517,27 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
+ 	done
+ 	unset add_pkg
+ 
++	# VeyTerm ships a transparent paru-compatible command until a reproducible
++	# Android build of the full AUR helper is published. Repository operations
++	# use pacman; AUR operations fail explicitly instead of silently pretending
++	# to provide an AUR client.
++	if [ "${TERMUX_PACKAGE_MANAGER}" = "pacman" ]; then
++		mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/etc/pacman.d/gnupg"
++		cat > "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/bin/paru" <<'EOF'
++#!/system/bin/sh
++case "${1:-}" in
++  -G|--get|--aur)
++    echo "VeyTerm: AUR support is disabled until the signed paru build is installed." >&2
++    exit 2
++    ;;
++  *)
++    exec pacman "$@"
++    ;;
++esac
++EOF
++		chmod 700 "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/bin/paru"
++	fi
++
+ 	# Add termux bootstrap second stage files
+ 	add_termux_bootstrap_second_stage_files "$package_arch"
+ 
