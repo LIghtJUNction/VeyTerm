@@ -60,6 +60,7 @@
     <string name="terminal_header_exited">EXITED</string>
     <string name="terminal_session_detail_running">Active shell</string>
     <string name="terminal_session_detail_exited">Exited with status %1$d</string>
+    <string name="terminal_toolbar_text_input_hint">Type a command…</string>
 
     <string name="msg_enabling_terminal_toolbar">Enabling Terminal Toolbar</string>
     <string name="msg_disabling_terminal_toolbar">Disabling Terminal Toolbar</string>
