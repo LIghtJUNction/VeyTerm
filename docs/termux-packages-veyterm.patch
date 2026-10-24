@@ -1,0 +1,329 @@
+diff --git i/packages/apt/build.sh w/packages/apt/build.sh
+index cb40498..68e50b9 100644
+--- i/packages/apt/build.sh
++++ w/packages/apt/build.sh
+@@ -3,13 +3,13 @@ TERMUX_PKG_DESCRIPTION="Front-end for the dpkg package manager"
+ TERMUX_PKG_LICENSE="GPL-2.0"
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.8.1"
+-TERMUX_PKG_REVISION=2
++TERMUX_PKG_REVISION=3
+ # old tarball are removed in https://deb.debian.org/debian/pool/main/a/apt/apt_${TERMUX_PKG_VERSION}.tar.xz
+ TERMUX_PKG_SRCURL=https://salsa.debian.org/apt-team/apt/-/archive/${TERMUX_PKG_VERSION}/apt-${TERMUX_PKG_VERSION}.tar.bz2
+ TERMUX_PKG_SHA256=87ca18392c10822a133b738118505f7d04e0b31ba1122bf5d32911311cb2dc7e
+ # apt-key requires utilities from coreutils, findutils, gpgv, grep, sed.
+ TERMUX_PKG_DEPENDS="coreutils, dpkg, findutils, gpgv, grep, libandroid-glob, libbz2, libc++, libiconv, libgcrypt, libgnutls, liblz4, liblzma, sed, termux-keyring, termux-licenses, xxhash, zlib, zstd"
+-TERMUX_PKG_BUILD_DEPENDS="docbook-xsl,libdb"
++TERMUX_PKG_BUILD_DEPENDS="libdb"
+ TERMUX_PKG_CONFLICTS="apt-transport-https, libapt-pkg, unstable-repo, game-repo, science-repo"
+ TERMUX_PKG_REPLACES="apt-transport-https, libapt-pkg, unstable-repo, game-repo, science-repo"
+ TERMUX_PKG_PROVIDES="unstable-repo, game-repo, science-repo"
+@@ -29,7 +29,7 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+ -DDPKG_DATADIR=$TERMUX_PREFIX/share/dpkg
+ -DUSE_NLS=OFF
+ -DWITH_DOC=OFF
+--DWITH_DOC_MANPAGES=ON
++-DWITH_DOC_MANPAGES=OFF
+ "
+ 
+ # ubuntu uses instead $PREFIX/lib instead of $PREFIX/libexec to
+@@ -67,9 +67,6 @@ termux_step_pre_configure() {
+ 	# Fix glob() on Android 7.
+ 	LDFLAGS+=" -Wl,--no-as-needed -landroid-glob"
+ 
+-	# for manpage build
+-	local docbook_xsl_version=$(. $TERMUX_SCRIPTDIR/packages/docbook-xsl/build.sh; echo $TERMUX_PKG_VERSION)
+-	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -DDOCBOOK_XSL=$TERMUX_PREFIX/share/xml/docbook/xsl-stylesheets-$docbook_xsl_version-nons"
+ }
+ 
+ termux_step_post_make_install() {
+diff --git i/packages/libxml2/build.sh w/packages/libxml2/build.sh
+index 8894da0..e7844b6 100644
+--- i/packages/libxml2/build.sh
++++ w/packages/libxml2/build.sh
+@@ -3,27 +3,25 @@ TERMUX_PKG_DESCRIPTION="Library for parsing XML documents"
+ TERMUX_PKG_LICENSE="MIT"
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.15.4"
+-TERMUX_PKG_REVISION="1"
++TERMUX_PKG_REVISION="2"
+ TERMUX_PKG_SRCURL="https://download.gnome.org/sources/libxml2/${TERMUX_PKG_VERSION%.*}/libxml2-${TERMUX_PKG_VERSION}.tar.xz"
+ TERMUX_PKG_SHA256=98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
+ TERMUX_PKG_DEPENDS="libandroid-glob, libiconv, zlib"
+-TERMUX_PKG_BUILD_DEPENDS="doxygen, python, readline"
++TERMUX_PKG_BUILD_DEPENDS="readline"
+ TERMUX_PKG_BREAKS="libxml2-dev"
+ TERMUX_PKG_REPLACES="libxml2-dev"
+ TERMUX_PKG_AUTO_UPDATE=true
+-TERMUX_PKG_HOSTBUILD=true
+-TERMUX_PKG_SETUP_PYTHON=true
+ # disabled due to compiler warnings
+ #	-Dthread-alloc=enabled
+ #	-Dtls=enabled
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+-	-Ddocs=enabled
++	-Ddocs=disabled
+ 	-Dhttp=enabled
+ 	-Dlegacy=enabled
+ "
+-# Python bindings
++# Python bindings are not part of the bootstrap runtime.
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS+="
+-	-Dpython=enabled
++	-Dpython=disabled
+ "
+ # `xmllint` history support
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS+="
+@@ -36,23 +34,8 @@ share/doc/libxml2/xmlcatalog.html
+ share/doc/libxml2/xmllint.html
+ "
+ 
+-termux_step_host_build() {
+-	if [[ "$TERMUX_ON_DEVICE_BUILD" == "false" ]]; then
+-		# We need doxygen, other packages are it's dependencies
+-		termux_download_ubuntu_packages doxygen libfmt10 libspdlog1.15 libxapian30
+-	fi
+-}
+-
+ termux_step_configure() {
+-	if [[ "$TERMUX_ON_DEVICE_BUILD" == "false" ]]; then
+-		export LD_LIBRARY_PATH="$TERMUX_PKG_HOSTBUILD_DIR/ubuntu_packages/usr/lib/x86_64-linux-gnu"
+-		export PATH="$TERMUX_PKG_HOSTBUILD_DIR/ubuntu_packages/usr/bin:$PATH"
+-	fi
+-
+ 	LDFLAGS+=" -landroid-glob"
+-	# This directory is usually made by doxygen
+-	# and python/generator.py expects it to be there.
+-	mkdir -p "$TERMUX_PKG_BUILDDIR/python/doc/xml"
+ 	# # SOVERSION suffix is needed for SONAME of shared libs to avoid conflict
+ 	# # with system ones (in /system/lib64 or /system/lib):
+ 	export TERMUX_MESON_ENABLE_SOVERSION=1
+diff --git i/packages/util-linux/build.sh w/packages/util-linux/build.sh
+index e9774d7..2eda88e 100644
+--- i/packages/util-linux/build.sh
++++ w/packages/util-linux/build.sh
+@@ -11,6 +11,7 @@ TERMUX_PKG_LICENSE_FILE="
+ "
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.42.4"
++TERMUX_PKG_REVISION="1"
+ TERMUX_PKG_SRCURL="https://www.kernel.org/pub/linux/utils/util-linux/v${TERMUX_PKG_VERSION:0:4}/util-linux-${TERMUX_PKG_VERSION}.tar.xz"
+ TERMUX_PKG_SHA256=fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec
+ # <dependency>: <binaries linking to that dependency>
+@@ -54,6 +55,7 @@ ac_cv_type_struct_fanotify_event_info_header=no
+ --disable-nologin
+ --disable-pivot_root
+ --disable-poman
++--without-python
+ --disable-raw
+ --disable-rfkill
+ --disable-switch_root
+diff --git i/scripts/build-bootstraps.sh w/scripts/build-bootstraps.sh
+index 53bb59d..d3cce70 100755
+--- i/scripts/build-bootstraps.sh
++++ w/scripts/build-bootstraps.sh
+@@ -68,6 +68,17 @@ build_package() {
+ 
+ 	local build_output
+ 
++	# Some bootstrap package names are subpackages produced by another build
++	# recipe (for example bzip2 is emitted by libbz2). Reuse that deb when the
++	# subpackage has already been built instead of asking build-package.sh for a
++	# nonexistent standalone recipe.
++	if [[ ! -d "$TERMUX_PACKAGES_DIRECTORY/packages/$package_name" ]] && \
++		compgen -G "$TERMUX_BUILT_DEBS_DIRECTORY/${package_name}_*_${TERMUX_ARCH}.deb" > /dev/null; then
++		echo "[*] Building '$package_name'..."
++		echo "Found prebuilt ${package_name} subpackage for ${TERMUX_ARCH} - skipping"
++		return 0
++	fi
++
+ 	# Build package from source
+ 	# stderr will be redirected to stdout and both will be captured into variable and printed on screen
+ 	cd "$TERMUX_PACKAGES_DIRECTORY"
+@@ -93,7 +104,9 @@ build_package() {
+ 
+ }
+ 
+-# Extract *.deb files to the bootstrap root.
++# Extract only the bootstrap package set and its runtime dependency closure.
++# Local builds also produce build-dependency debs, which must not be copied into
++# the runtime bootstrap archive.
+ extract_debs() {
+ 
+ 	local package_arch="$1"
+@@ -103,6 +116,19 @@ extract_debs() {
+ 	local package_tmpdir
+ 	local deb
+ 	local file
++	local package_dep
++	local dependency_expression
++	local dependency_candidate
++	local dependency_added
++	local current_package_arch
++	local dependency_fields
++	local provided_name
++	local current_package_version
++	local -a local_debs
++	declare -A LOCAL_DEBS_BY_PACKAGE=()
++	declare -A LOCAL_DEB_VERSIONS=()
++	declare -A LOCAL_DEBS_BY_PROVIDES=()
++	declare -A BOOTSTRAP_PACKAGE_NAMES=()
+ 
+ 	cd "$TERMUX_BUILT_DEBS_DIRECTORY"
+ 
+@@ -116,10 +142,83 @@ extract_debs() {
+ 		echo "\""
+ 	fi
+ 
+-	for deb in *.deb; do
++	# Index all locally built packages by the package name in their control
++	# metadata. Filenames can contain epochs and revisions, so do not parse
++	# package names from the filename for dependency resolution.
++	shopt -s nullglob
++	local_debs=( *.deb )
++	if [ "${#local_debs[@]}" -eq 0 ]; then
++		echo "No deb files found in $TERMUX_BUILT_DEBS_DIRECTORY"
++		return 1
++	fi
+ 
+-		current_package_name="$(echo "$deb" | sed -E 's/^([^_]+).*/\1/' )"
+-		current_package_arch="$(echo "$deb" | sed -E 's/.*_(aarch64|all|arm|i686|x86_64).deb$/\1/' )"
++	for deb in "${local_debs[@]}"; do
++		current_package_name="$(dpkg-deb -f "$deb" Package)"
++		current_package_arch="$(dpkg-deb -f "$deb" Architecture)"
++		if [[ "$current_package_arch" != "$package_arch" && "$current_package_arch" != "all" ]]; then
++			continue
++		fi
++		current_package_version="$(dpkg-deb -f "$deb" Version)"
++		if [ -z "${LOCAL_DEBS_BY_PACKAGE[$current_package_name]-}" ] || \
++			dpkg --compare-versions "$current_package_version" gt "${LOCAL_DEB_VERSIONS[$current_package_name]}"; then
++			LOCAL_DEBS_BY_PACKAGE["$current_package_name"]="$TERMUX_BUILT_DEBS_DIRECTORY/$deb"
++			LOCAL_DEB_VERSIONS["$current_package_name"]="$current_package_version"
++			while read -r provided_name; do
++				provided_name="$(echo "$provided_name" | sed -E 's/\([^)]*\)//; s/:any$//; s/:[a-z0-9-]+$//')"
++				[ -n "$provided_name" ] && LOCAL_DEBS_BY_PROVIDES["$provided_name"]="$current_package_name"
++			done < <(dpkg-deb -f "$deb" Provides 2>/dev/null | tr ',' '\n')
++		fi
++	done
++
++	# Seed the closure with the packages explicitly requested by the bootstrap.
++	for current_package_name in "${PACKAGES[@]}"; do
++		BOOTSTRAP_PACKAGE_NAMES["$current_package_name"]=1
++		if [ -z "${LOCAL_DEBS_BY_PACKAGE[$current_package_name]-}" ]; then
++			echo "Missing bootstrap package '$current_package_name' for target '$package_arch'"
++			return 1
++		fi
++	done
++
++	# Walk Depends entries until no new locally built runtime dependency is found.
++	dependency_added=true
++	while $dependency_added; do
++		dependency_added=false
++		for current_package_name in "${!BOOTSTRAP_PACKAGE_NAMES[@]}"; do
++			deb="${LOCAL_DEBS_BY_PACKAGE[$current_package_name]-}"
++			[ -n "$deb" ] || continue
++			dependency_fields="$( { dpkg-deb -f "$deb" Depends; dpkg-deb -f "$deb" Pre-Depends; } 2>/dev/null | tr ',' '\n' )"
++			while read -r dependency_expression; do
++				[ -n "$dependency_expression" ] || continue
++				dependency_candidate=""
++				dependency_expression="$(echo "$dependency_expression" | sed -E 's/\([^)]*\)//g')"
++				for package_dep in $(echo "$dependency_expression" | tr '|' ' '); do
++					package_dep="$(echo "$package_dep" | sed -E 's/:any$//; s/:[a-z0-9-]+$//')"
++					if [ -n "${LOCAL_DEBS_BY_PACKAGE[$package_dep]-}" ]; then
++						dependency_candidate="$package_dep"
++						break
++					elif [ -n "${LOCAL_DEBS_BY_PROVIDES[$package_dep]-}" ]; then
++						dependency_candidate="${LOCAL_DEBS_BY_PROVIDES[$package_dep]}"
++						break
++					fi
++				done
++				if [ -n "$dependency_candidate" ] && [ -z "${BOOTSTRAP_PACKAGE_NAMES[$dependency_candidate]-}" ]; then
++					BOOTSTRAP_PACKAGE_NAMES["$dependency_candidate"]=1
++					dependency_added=true
++				fi
++			done <<< "$dependency_fields"
++		done
++	done
++
++	echo "[*] Runtime bootstrap package closure: ${#BOOTSTRAP_PACKAGE_NAMES[@]} packages"
++
++	for current_package_name in "${!LOCAL_DEBS_BY_PACKAGE[@]}"; do
++		deb="${LOCAL_DEBS_BY_PACKAGE[$current_package_name]}"
++		if [ -z "${BOOTSTRAP_PACKAGE_NAMES[$current_package_name]-}" ]; then
++			echo "[*] Skipping build-only package '$deb' ($current_package_name)..."
++			continue
++		fi
++
++		current_package_arch="$(dpkg-deb -f "$deb" Architecture)"
+ 		echo "current_package_name: '$current_package_name'"
+ 		echo "current_package_arch: '$current_package_arch'"
+ 
+@@ -146,7 +245,7 @@ extract_debs() {
+ 
+ 		echo "[*] Extracting '$deb'..."
+ 		(cd "$package_tmpdir"
+-			ar x "$TERMUX_BUILT_DEBS_DIRECTORY/$deb"
++			ar x "$deb"
+ 
+ 			# data.tar may have extension different from .xz
+ 			if [ -f "./data.tar.xz" ]; then
+@@ -429,6 +528,7 @@ main() {
+ 
+ 		# Core utilities.
+ 		PACKAGES+=("bash") # Used by `termux-bootstrap-second-stage.sh`
++		PACKAGES+=("libbz2")
+ 		PACKAGES+=("bzip2")
+ 		if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
+ 			PACKAGES+=("command-not-found")
+diff --git i/scripts/properties.sh w/scripts/properties.sh
+index fe062ea..3e9fd68 100644
+--- i/scripts/properties.sh
++++ w/scripts/properties.sh
+@@ -371,7 +371,7 @@ fi
+ #
+ # Default value: `Termux`
+ ##
+-TERMUX__NAME="Termux"
++TERMUX__NAME="VeyTerm"
+ 
+ ##
+ # The lower case value for `TERMUX__NAME`.
+@@ -464,7 +464,7 @@ TERMUX__REPOS_HOST_ORG_URL="https://github.com/$TERMUX__REPOS_HOST_ORG_NAME"
+ #
+ # Default value: `com.termux`
+ ##
+-TERMUX_APP__PACKAGE_NAME="com.termux"
++TERMUX_APP__PACKAGE_NAME="com.veyterm"
+ TERMUX_APP_PACKAGE="$TERMUX_APP__PACKAGE_NAME" # Deprecated alternative variable for `TERMUX_APP__PACKAGE_NAME`
+ 
+ __termux_build_props__add_variables_validator_actions "TERMUX_APP__PACKAGE_NAME" "app_package_name"
+@@ -1816,7 +1816,7 @@ TERMUX_APP__LNAME="${TERMUX_APP__NAME,,}"
+ # Validation regex: `TERMUX__APPS_APP_IDENTIFIER_REGEX`
+ # Max length: `TERMUX__APPS_APP_IDENTIFIER___MAX_LEN`
+ ##
+-TERMUX_APP__APP_IDENTIFIER="termux"
++TERMUX_APP__APP_IDENTIFIER="veyterm"
+ 
+ 
+ 
+@@ -2180,13 +2180,13 @@ TERMUX_AM_APP__AM_CLASS__CLASS_NAME="$TERMUX_AM_APP__NAMESPACE.Am"
+ # and are compiled locally.
+ # FIXME: Checking for all variables will be added later in repo
+ # changes pull, currently only `TERMUX_REPO_APP__PACKAGE_NAME` is checked.
+-TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
+-TERMUX_REPO_APP__DATA_DIR="/data/data/com.termux"
+-TERMUX_REPO__CORE_DIR="/data/data/com.termux/termux/core"
+-TERMUX_REPO__APPS_DIR="/data/data/com.termux/termux/app"
+-TERMUX_REPO__ROOTFS="/data/data/com.termux/files"
+-TERMUX_REPO__HOME="/data/data/com.termux/files/home"
+-TERMUX_REPO__PREFIX="/data/data/com.termux/files/usr"
++TERMUX_REPO_APP__PACKAGE_NAME="com.veyterm"
++TERMUX_REPO_APP__DATA_DIR="/data/data/com.veyterm"
++TERMUX_REPO__CORE_DIR="/data/data/com.veyterm/termux/core"
++TERMUX_REPO__APPS_DIR="/data/data/com.veyterm/termux/app"
++TERMUX_REPO__ROOTFS="/data/data/com.veyterm/files"
++TERMUX_REPO__HOME="/data/data/com.veyterm/files/home"
++TERMUX_REPO__PREFIX="/data/data/com.veyterm/files/usr"
+ 
+ 
+ 

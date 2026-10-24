@@ -222,10 +222,10 @@ task downloadBootstraps() {
         def packageVariant = project.ext.packageVariant
         if (packageVariant == "apt-android-7") {
             def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "bootstrap-veyterm-0.1.0"
-            downloadBootstrap("aarch64", "ea2aeba8819e517db711f8c32369e89e7c52cee73e07930ff91185e1ab93f4f3", version)
-            downloadBootstrap("arm", "a38f4d3b2f735f83be2bf54eff463e86dc32a3e2f9f861c1557c4378d249c018", version)
-            downloadBootstrap("i686", "f5bc0b025b9f3b420b5fcaeefc064f888f5f22a0d6fd7090f4aac0c33eb3555b", version)
-            downloadBootstrap("x86_64", "b7fd0f2e3a4de534be3144f9f91acc768630fc463eaf134ab2e64c545e834f7a", version)
+            downloadBootstrap("aarch64", "9951eabae8b5acf65c4fc3e418f69207171ab97b1cb54c7b576214782d5678d6", version)
+            downloadBootstrap("arm", "0ac40cda79ece308944c4f0fca848c64cb17d2146978662b8c1ae8a74e585791", version)
+            downloadBootstrap("i686", "f4102e4a892bd0962e5d6b6e50e23027b017dc14cf4f0b1a33350c0956215807", version)
+            downloadBootstrap("x86_64", "163ecccc6b18d384d32a81a334774dc313004883ee027bf5e7c14d7345494c8c", version)
         } else if (packageVariant == "apt-android-5") {
             def version = "2022.04.28-r6" + "+" + packageVariant
             downloadBootstrap("aarch64", "913609d439415c828c5640be1b0561467e539cb1c7080662decaaca2fb4820e7", version)
