@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Kitty-inspired dark terminal palette; shared by day/night to keep the
-         terminal legible and visually stable on Android devices. -->
-    <color name="vey_surface_terminal">#0B0F14</color>
-    <color name="vey_surface_panel">#111821</color>
-    <color name="vey_surface_elevated">#17212C</color>
-    <color name="vey_surface_selected">#1B3542</color>
-    <color name="vey_border">#263445</color>
-    <color name="vey_text_primary">#F3F6FA</color>
-    <color name="vey_text_secondary">#9AA8B8</color>
-    <color name="vey_text_muted">#667588</color>
-    <color name="vey_accent">#79D6FF</color>
-    <color name="vey_success">#73E2A8</color>
-    <color name="vey_warning">#F7C873</color>
-    <color name="vey_error">#FF7A90</color>
+    <!-- Omarchy/Kitty warm terminal palette. Keep surfaces flat and quiet so
+         the shell remains the only visual focus. -->
+    <color name="vey_surface_terminal">#211F20</color>
+    <color name="vey_surface_panel">#2A2728</color>
+    <color name="vey_surface_elevated">#302C2C</color>
+    <color name="vey_surface_selected">#3A3932</color>
+    <color name="vey_border">#8E8175</color>
+    <color name="vey_text_primary">#E8E1D8</color>
+    <color name="vey_text_secondary">#B8AEA3</color>
+    <color name="vey_text_muted">#857B72</color>
+    <color name="vey_accent">#ABB89B</color>
+    <color name="vey_success">#ABB89B</color>
+    <color name="vey_warning">#C78C5B</color>
+    <color name="vey_error">#C56B5F</color>
 </resources>

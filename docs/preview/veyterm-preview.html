@@ -7,22 +7,22 @@
   <style>
     :root {
       color-scheme: dark;
-      --void: #070a0f;
-      --shell: #0d1219;
-      --surface: #111821;
-      --surface-2: #151e28;
-      --surface-3: #1b2632;
-      --rule: #243241;
-      --text: #edf3f8;
-      --muted: #8d9baa;
-      --dim: #556576;
-      --cyan: #7dd9ff;
-      --violet: #b8a6ff;
-      --green: #79e2a8;
-      --amber: #f6cb78;
-      --red: #ff829a;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --void: #211f20;
+      --shell: #2a2728;
+      --surface: #2a2728;
+      --surface-2: #302c2c;
+      --surface-3: #3a3932;
+      --rule: #8e8175;
+      --text: #e8e1d8;
+      --muted: #b8aea3;
+      --dim: #857b72;
+      --cyan: #abb89b;
+      --violet: #abb89b;
+      --green: #abb89b;
+      --amber: #c78c5b;
+      --red: #c56b5f;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: var(--mono);
     }
     * { box-sizing: border-box; }
     body {
@@ -38,13 +38,13 @@
       min-height: min(900px, calc(100vh - 36px));
       margin: 18px auto;
       display: grid;
-      grid-template-columns: 64px minmax(0, 1fr) 258px;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 56px minmax(0, 1fr);
       overflow: hidden;
-      border: 1px solid #263544;
-      border-radius: 14px;
+      border: 1px solid var(--rule);
+      border-radius: 2px;
       background: var(--shell);
-      box-shadow: 0 32px 100px #000b, 0 0 0 6px #ffffff04;
+      box-shadow: none;
     }
     .topbar {
       grid-column: 1 / -1;
@@ -53,7 +53,7 @@
       gap: 14px;
       padding: 0 16px 0 12px;
       border-bottom: 1px solid var(--rule);
-      background: #0b1016;
+      background: var(--surface);
     }
     .brand {
       display: flex;
@@ -68,10 +68,10 @@
       width: 28px;
       height: 28px;
       place-items: center;
-      border: 1px solid #3b7083;
-      border-radius: 8px;
+      border: 1px solid var(--rule);
+      border-radius: 0;
       color: var(--cyan);
-      background: #10232e;
+      background: var(--surface-2);
       font: 700 14px var(--mono);
     }
     .brand small { display: block; margin-top: 1px; color: var(--dim); font: 10px var(--mono); letter-spacing: .08em; }
@@ -82,12 +82,12 @@
       min-width: 0;
       padding: 3px;
       border: 1px solid var(--rule);
-      border-radius: 8px;
-      background: #0d141b;
+      border-radius: 0;
+      background: var(--surface);
     }
     .session-switcher button, .top-action {
       border: 0;
-      border-radius: 5px;
+      border-radius: 0;
       background: transparent;
       color: var(--muted);
       cursor: default;
@@ -97,37 +97,9 @@
     .session-switcher em { color: var(--green); font-style: normal; font-size: 10px; }
     .top-spacer { flex: 1; }
     .top-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
-    .online { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px #79e2a899; }
-    .top-action { width: 32px; height: 32px; font-size: 16px; }
+    .online { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px #abb89b99; }
+    .top-action { width: 40px; height: 28px; font: 10px var(--mono); letter-spacing: .08em; }
     .top-action:hover { background: var(--surface-3); color: var(--text); }
-
-    .rail {
-      grid-row: 2;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 8px;
-      border-right: 1px solid var(--rule);
-      background: #0a0f15;
-    }
-    .rail button {
-      position: relative;
-      display: grid;
-      width: 40px;
-      height: 40px;
-      place-items: center;
-      border: 1px solid transparent;
-      border-radius: 8px;
-      background: transparent;
-      color: var(--dim);
-      cursor: default;
-      font-size: 17px;
-    }
-    .rail button.active { border-color: #315269; color: var(--cyan); background: #12212c; }
-    .rail button.active::before { position: absolute; left: -9px; width: 2px; height: 18px; border-radius: 0 2px 2px 0; background: var(--cyan); content: ""; }
-    .rail .spacer { flex: 1; }
-    .rail-label { color: var(--dim); font: 9px var(--mono); writing-mode: vertical-rl; letter-spacing: .12em; }
 
     .workspace {
       grid-row: 2;
@@ -142,23 +114,25 @@
       gap: 10px;
       padding: 0 18px;
       border-bottom: 1px solid var(--rule);
-      background: #101720;
+      background: var(--surface);
     }
     .crumb { color: var(--text); font: 12px var(--mono); }
     .crumb span { color: var(--dim); }
-    .head-badge { padding: 3px 7px; border: 1px solid var(--rule); border-radius: 5px; color: var(--muted); font: 10px var(--mono); }
-    .head-badge.accent { border-color: #36596b; color: var(--cyan); background: #10222d; }
-    .head-actions { display: flex; gap: 3px; margin-left: auto; }
-    .head-actions button { width: 28px; height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); }
+    .head-badge { padding: 3px 7px; border: 1px solid var(--rule); border-radius: 0; color: var(--muted); font: 10px var(--mono); }
+    .head-badge.accent { border-color: var(--rule); color: var(--cyan); background: var(--surface-2); }
+    .head-actions { display: flex; gap: 8px; margin-left: auto; }
+    .head-actions button { width: 44px; height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font: 9px var(--mono); letter-spacing: .05em; }
     .head-actions button:hover { background: var(--surface-3); color: var(--text); }
     .terminal {
       min-height: 0;
       overflow: hidden;
       padding: 24px 28px;
-      background: radial-gradient(ellipse at 25% 0%, #182a36 0, transparent 43%), #0d141b;
+      background: var(--void);
       font: 13px/1.75 var(--mono);
     }
     .terminal-line { white-space: pre-wrap; }
+    .split-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; overflow: hidden; }
+    .split-view > .terminal + .terminal { border-left: 1px solid var(--rule); }
     .terminal-line.muted { color: var(--dim); }
     .terminal-line.output { color: var(--muted); }
     .terminal-line.success { color: var(--green); }
@@ -175,64 +149,43 @@
       gap: 10px;
       padding: 10px 16px;
       border-top: 1px solid var(--rule);
-      background: #0b1118;
+      background: var(--surface);
     }
     .command-bar .prompt { padding-left: 4px; font: 16px var(--mono); }
     .command-input {
       flex: 1;
       min-width: 0;
       padding: 9px 11px;
-      border: 1px solid #2b4352;
-      border-radius: 7px;
-      background: #111c25;
+      border: 1px solid var(--rule);
+      border-radius: 0;
+      background: var(--surface);
       color: var(--text);
       font: 12px var(--mono);
-      box-shadow: 0 0 0 2px #79d6ff0a;
+      box-shadow: none;
     }
     .command-input::placeholder { color: var(--dim); }
     .key { padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; color: var(--dim); font: 10px var(--mono); }
-    .send { width: 32px; height: 32px; border: 1px solid #3b7083; border-radius: 6px; background: #12303c; color: var(--cyan); font-size: 16px; }
+    .send { width: 48px; height: 32px; font: 10px var(--mono); letter-spacing: .08em; border: 1px solid var(--rule); border-radius: 0; background: var(--surface-2); color: var(--cyan); }
 
-    .inspector {
-      grid-row: 2;
-      min-width: 0;
-      padding: 18px 16px;
-      border-left: 1px solid var(--rule);
-      background: #0b1118;
-    }
-    .inspector-title { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 18px; }
-    .inspector-title strong { font-size: 12px; letter-spacing: .1em; }
-    .inspector-title span { color: var(--dim); font: 10px var(--mono); }
-    .inspector-section { margin: 0 0 22px; }
-    .inspector-section h2 { margin: 0 0 8px; color: var(--dim); font: 10px var(--mono); letter-spacing: .14em; }
-    .inspector-row { display: flex; align-items: center; gap: 8px; min-height: 34px; border-bottom: 1px solid #1a2631; }
-    .inspector-row:last-child { border-bottom: 0; }
-    .inspector-row b { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 12px; font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }
-    .inspector-row small { color: var(--muted); font: 10px var(--mono); }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
-    .status-dot.green { background: var(--green); box-shadow: 0 0 8px #79e2a866; }
-    .status-dot.violet { background: var(--violet); }
-    .permission { color: var(--green); font: 10px var(--mono); }
-    .path-list { color: var(--muted); font: 11px/1.8 var(--mono); }
-    .path-list code { color: var(--cyan); }
-    .inspector-foot { position: absolute; bottom: 24px; color: var(--dim); font: 10px var(--mono); }
     .note { width: min(1440px, calc(100vw - 36px)); margin: -2px auto 18px; color: #6f7e8d; font: 12px var(--sans); text-align: center; }
+    .status-label { color: var(--dim); font: 9px var(--mono); letter-spacing: .08em; white-space: nowrap; }
     .note code { color: var(--cyan); font-family: var(--mono); }
     @media (max-width: 980px) {
-      .window { grid-template-columns: 56px minmax(0, 1fr); }
-      .inspector { display: none; }
+      .window { grid-template-columns: minmax(0, 1fr); }
       .brand { min-width: 120px; }
       .session-switcher button:nth-child(n+2) { display: none; }
     }
     @media (max-width: 620px) {
-      .window { width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: 52px minmax(0, 1fr); }
+      .window { width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: 52px minmax(0, 1fr); }
       .topbar { padding-right: 8px; gap: 6px; }
       .brand { min-width: 32px; }
       .brand > div:last-child, .session-switcher, .top-meta { display: none; }
+      .split-view { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+      .split-view > .terminal + .terminal { border-top: 1px solid var(--rule); border-left: 0; }
       .terminal { padding: 18px 15px; font-size: 11px; }
       .workspace-head { padding: 0 12px; }
       .command-bar { padding: 8px 10px; }
-      .key { display: none; }
+      .key, .status-label { display: none; }
       .note { display: none; }
     }
   </style>
@@ -240,36 +193,26 @@
 <body>
   <main class="window" aria-label="VeyTerm terminal workspace preview">
     <header class="topbar">
-      <div class="brand"><div class="mark">›_</div><div>VeyTerm<small>ANDROID TERMINAL</small></div></div>
-      <div class="session-switcher" aria-label="sessions"><button class="active"><em>●</em>&nbsp; local</button><button>build</button><button>logs</button></div>
+      <div class="brand"><div class="mark">$_</div><div>VeyTerm<small>ANDROID TERMINAL</small></div></div>
+      <div class="session-switcher" aria-label="sessions"><button class="active"><em>RUN</em>&nbsp; local</button><button>build</button><button>logs</button></div>
       <div class="top-spacer"></div>
       <div class="top-meta"><span class="online"></span><span>LOCAL</span><span>09:41</span></div>
-      <button class="top-action" aria-label="new session">＋</button><button class="top-action" aria-label="settings">⌘</button>
+      <button class="top-action" aria-label="new session">NEW</button><button class="top-action" aria-label="settings">SET</button>
     </header>
-
-    <nav class="rail" aria-label="workspace navigation">
-      <button class="active" aria-label="terminal">⌁</button>
-      <button aria-label="sessions">▤</button>
-      <button aria-label="files">⌂</button>
-      <button aria-label="MCP">⠿</button>
-      <button aria-label="skills">✦</button>
-      <div class="spacer"></div>
-      <span class="rail-label">VEYTERM</span>
-      <button aria-label="settings">⚙</button>
-    </nav>
 
     <section class="workspace">
       <div class="workspace-head">
         <div class="crumb"><span>~</span> / workspace</div><span class="head-badge accent">zsh</span><span class="head-badge">pacman</span>
-        <div class="head-actions"><button aria-label="split">◫</button><button aria-label="clear">⌫</button><button aria-label="more">•••</button></div>
+        <div class="head-actions"><button aria-label="split">SPLIT</button><button aria-label="clear">CLR</button><button aria-label="more">MORE</button></div>
       </div>
+      <div class="split-view">
       <div class="terminal">
         <div class="terminal-line muted">VeyTerm shell · Linux view · Android sandbox boundary visible</div>
         <br>
         <div class="terminal-line"><span class="prompt">╭─</span> <span class="user">user@veyterm</span> <span class="path">~/workspace</span></div>
         <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">sudo pacman -S paru</span></div>
         <div class="terminal-line output">resolving dependencies · checking keyring · syncing main</div>
-        <div class="terminal-line success">✓ paru shim ready · AUR remains explicitly disabled by default</div>
+        <div class="terminal-line success">ok paru shim ready · AUR remains explicitly disabled by default</div>
         <br>
         <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">mcp tools</span></div>
         <div class="terminal-line output">filesystem.read&nbsp;&nbsp; git.status&nbsp;&nbsp; browser.open <span class="permission">[read-only]</span></div>
@@ -282,16 +225,28 @@
         <div class="terminal-line"><span class="prompt">╭─</span> <span class="user">user@veyterm</span> <span class="path">~/workspace</span></div>
         <div class="terminal-line"><span class="prompt">╰─❯</span><span class="cursor"></span></div>
       </div>
-      <div class="command-bar"><span class="prompt">❯</span><input class="command-input" aria-label="command input" placeholder="Run a command or ask VeyTerm AI…"><span class="key">Ctrl K</span><button class="send" aria-label="send">↵</button></div>
+      <div class="terminal">
+        <div class="terminal-line muted">fastfetch · Linux user view</div>
+        <br>
+        <div class="terminal-line"><span class="user">VeyTerm</span> Android terminal</div>
+        <div class="terminal-line output">OS        Android / Linux userland</div>
+        <div class="terminal-line output">Shell     zsh 5.x</div>
+        <div class="terminal-line output">Packages  pacman · paru ready</div>
+        <div class="terminal-line output">Prefix    /usr  (private path hidden)</div>
+        <div class="terminal-line output">Session   local · foreground</div>
+        <br>
+        <div class="terminal-line"><span class="prompt">╰─❯</span> <span class="command">ls -la /etc /usr/bin</span></div>
+        <div class="terminal-line output">drwxr-xr-x root root  /etc</div>
+        <div class="terminal-line output">drwxr-xr-x root root  /usr/bin</div>
+        <div class="terminal-line output">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div>
+        <div class="terminal-line output">-rwxr-xr-x root root  /usr/bin/pacman</div>
+        <br>
+        <div class="terminal-line"><span class="prompt">╰─❯</span><span class="cursor"></span></div>
+      </div>
+      </div>
+      <div class="command-bar"><span class="prompt">&gt;</span><input class="command-input" aria-label="command input" placeholder="Run a command or ask VeyTerm AI…"><span class="status-label">MCP OFF</span><span class="status-label">SKILLS 2</span><span class="status-label">FILES ~</span><span class="key">CTRL K</span><button class="send" aria-label="send">SEND</button></div>
     </section>
-
-    <aside class="inspector" aria-label="context inspector">
-      <div class="inspector-title"><strong>WORKSPACE</strong><span>local</span></div>
-      <section class="inspector-section"><h2>SESSION</h2><div class="inspector-row"><span class="status-dot green"></span><b>local · zsh</b><small>active</small></div><div class="inspector-row"><span class="status-dot green"></span><b>build · pacman</b><small>idle</small></div><div class="inspector-row"><span class="status-dot"></span><b>logs</b><small>stopped</small></div></section>
-      <section class="inspector-section"><h2>AI CAPABILITIES</h2><div class="inspector-row"><span class="status-dot violet"></span><b>MCP</b><small>4 tools</small></div><div class="inspector-row"><span class="status-dot violet"></span><b>Skills</b><small>2 enabled</small></div><div class="inspector-row"><span class="status-dot"></span><b>Network</b><small>off</small></div></section>
-      <section class="inspector-section"><h2>LINUX VIEW</h2><div class="path-list"><code>~</code>&nbsp; /etc&nbsp; /usr<br><code>owner</code>&nbsp; group&nbsp; mode&nbsp; links<br><code>sudo</code>&nbsp; root probe: unavailable</div></section>
-    </aside>
   </main>
-  <p class="note">预览稿：终端保持主角；会话、MCP、Skills 和 Linux 文件视图通过窄 rail 与 inspector 进入，不再堆叠在终端旁边。</p>
+  <p class="note">预览稿：双终端窗格保持唯一主角；顶部标签切换会话，MCP、Skills、Files 只在命令和底部状态条出现。</p>
 </body>
 </html>
