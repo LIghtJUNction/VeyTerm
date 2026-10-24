@@ -12,6 +12,7 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.text.TextUtils;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.Gravity;
@@ -24,6 +25,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.termux.R;
@@ -250,6 +252,8 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         setNewSessionButtonView();
 
         setToggleKeyboardView();
+
+        setModernHeaderView();
 
         registerForContextMenu(mTerminalView);
 
@@ -503,6 +507,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         termuxSessionsListView.setAdapter(mTermuxSessionListViewController);
         termuxSessionsListView.setOnItemClickListener(mTermuxSessionListViewController);
         termuxSessionsListView.setOnItemLongClickListener(mTermuxSessionListViewController);
+        updateSessionHeader();
     }
 
 
@@ -564,10 +569,15 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
 
 
     private void setSettingsButtonView() {
-        ImageButton settingsButton = findViewById(R.id.settings_button);
-        settingsButton.setOnClickListener(v -> {
+        View.OnClickListener openSettings = v -> {
             ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
-        });
+        };
+
+        ImageButton settingsButton = findViewById(R.id.settings_button);
+        if (settingsButton != null) settingsButton.setOnClickListener(openSettings);
+
+        ImageButton topSettingsButton = findViewById(R.id.top_settings_button);
+        if (topSettingsButton != null) topSettingsButton.setOnClickListener(openSettings);
     }
 
     private void setNewSessionButtonView() {
@@ -594,11 +604,23 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         });
     }
 
+    private void setModernHeaderView() {
+        View drawerToggleButton = findViewById(R.id.drawer_toggle_button);
+        if (drawerToggleButton != null) {
+            drawerToggleButton.setOnClickListener(v -> getDrawer().openDrawer(Gravity.LEFT));
+        }
+
+        View topNewSessionButton = findViewById(R.id.top_new_session_button);
+        if (topNewSessionButton != null) {
+            topNewSessionButton.setOnClickListener(v -> mTermuxTerminalSessionActivityClient.addNewSession(false, null));
+        }
+    }
 
 
 
 
-    @SuppressLint("RtlHardcoded")
+
+    @SuppressLint({"RtlHardcoded", "MissingSuperCall"})
     @Override
     public void onBackPressed() {
         if (getDrawer().isDrawerOpen(Gravity.LEFT)) {
@@ -856,7 +878,35 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
 
 
     public void termuxSessionListNotifyUpdated() {
-        mTermuxSessionListViewController.notifyDataSetChanged();
+        if (mTermuxSessionListViewController != null)
+            mTermuxSessionListViewController.notifyDataSetChanged();
+        updateSessionHeader();
+    }
+
+    private void updateSessionHeader() {
+        TextView titleView = findViewById(R.id.terminal_header_title);
+        TextView subtitleView = findViewById(R.id.terminal_header_subtitle);
+        View statusView = findViewById(R.id.terminal_header_status);
+        if (titleView == null || subtitleView == null || statusView == null) return;
+
+        TerminalSession session = getCurrentSession();
+        if (session == null) {
+            titleView.setText(R.string.application_name);
+            subtitleView.setText(R.string.terminal_header_local_shell);
+            statusView.setBackgroundResource(R.drawable.session_status_stopped);
+            return;
+        }
+
+        String name = session.mSessionName;
+        titleView.setText(TextUtils.isEmpty(name) ? getString(R.string.application_name) : name);
+        if (session.isRunning()) {
+            subtitleView.setText(R.string.terminal_header_running);
+            statusView.setBackgroundResource(R.drawable.session_status_running);
+        } else {
+            subtitleView.setText(R.string.terminal_header_exited);
+            statusView.setBackgroundResource(session.getExitStatus() == 0
+                ? R.drawable.session_status_stopped : R.drawable.session_status_error);
+        }
     }
 
     public boolean isVisible() {

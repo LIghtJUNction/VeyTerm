@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TermuxActivity.DayNight.NoActionBar" parent="Theme.TermuxApp.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/vey_accent</item>
+        <item name="colorPrimaryVariant">@color/vey_surface_elevated</item>
+        <item name="colorAccent">@color/vey_accent</item>
+        <item name="android:windowBackground">@color/vey_surface_terminal</item>
+        <item name="android:statusBarColor">@color/vey_surface_panel</item>
+        <item name="android:navigationBarColor">@color/vey_surface_terminal</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowAllowReturnTransitionOverlap">true</item>
+        <item name="android:windowAllowEnterTransitionOverlap">true</item>
+        <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Dark</item>
+        <item name="termuxActivityDrawerBackground">@color/vey_surface_panel</item>
+        <item name="termuxActivityDrawerImageTint">@color/vey_text_primary</item>
+        <item name="extraKeysButtonTextColor">@color/vey_text_primary</item>
+        <item name="extraKeysButtonActiveTextColor">@color/vey_accent</item>
+        <item name="extraKeysButtonBackgroundColor">@color/vey_surface_panel</item>
+        <item name="extraKeysButtonActiveBackgroundColor">@color/vey_surface_elevated</item>
+    </style>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vey_surface_terminal">#0B0F14</color>
+    <color name="vey_surface_panel">#111821</color>
+    <color name="vey_surface_elevated">#17212C</color>
+    <color name="vey_surface_selected">#1B3542</color>
+    <color name="vey_border">#263445</color>
+    <color name="vey_text_primary">#F3F6FA</color>
+    <color name="vey_text_secondary">#9AA8B8</color>
+    <color name="vey_text_muted">#667588</color>
+    <color name="vey_accent">#79D6FF</color>
+    <color name="vey_success">#73E2A8</color>
+    <color name="vey_warning">#F7C873</color>
+    <color name="vey_error">#FF7A90</color>
+</resources>

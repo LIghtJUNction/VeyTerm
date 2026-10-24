@@ -1,9 +1,48 @@
-<com.google.android.material.textview.MaterialTextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/session_title"
-    android:layout_width="fill_parent"
-    android:layout_height="?android:attr/listPreferredItemHeight"
-    android:background="@drawable/session_background_selected"
-    android:ellipsize="marquee"
-    android:gravity="start|center_vertical"
-    android:padding="6dip"
-    android:textSize="14sp" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/session_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="56dp"
+    android:background="@drawable/session_row_selector"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="8dp">
+
+    <View
+        android:id="@+id/session_status_indicator"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:background="@drawable/session_status_stopped" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/session_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans"
+            android:maxLines="1"
+            android:textColor="@color/vey_text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/session_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans"
+            android:maxLines="1"
+            android:textColor="@color/vey_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>
