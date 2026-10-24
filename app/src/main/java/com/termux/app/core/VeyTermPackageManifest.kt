@@ -52,6 +52,8 @@ object VeyTermPackageManifests {
             "curl",
             "zstd",
             "fakeroot",
+            "proot",
+            "proot-distro",
         ),
         requiredFiles = listOf(
             "etc/pacman.conf",
@@ -61,6 +63,8 @@ object VeyTermPackageManifests {
             "bin/pacman",
             "bin/paru",
             "bin/sudo",
+            "bin/proot",
+            "bin/proot-distro",
         ),
         supportsUnprivilegedBuilds = true,
         aurEnabledByDefault = false,

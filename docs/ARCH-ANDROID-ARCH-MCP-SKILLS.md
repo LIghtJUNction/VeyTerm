@@ -26,9 +26,10 @@ never overwritten.
 `PACMAN_ANDROID_7`/`pacman-android-7`, and the Kotlin manifest in
 `VeyTermPackageManifests` is the first executable contract. It requires
 `pacman`, `paru`, `sudo`, `base-devel`, `git`, `ca-certificates`,
-`archlinux-keyring`, `openssl`, `curl`, `zstd`, and `fakeroot`. The bootstrap
-must contain `pacman.conf`, `makepkg.conf`, a populated keyring, sync database,
-and the `pacman`/`paru`/`sudo` commands under the VeyTerm prefix.
+`archlinux-keyring`, `openssl`, `curl`, `zstd`, `fakeroot`, `proot`, and
+`proot-distro`. The bootstrap must contain `pacman.conf`, `makepkg.conf`, a
+populated keyring, sync database, and the `pacman`/`paru`/`sudo`/`proot`/
+`proot-distro` commands under the VeyTerm prefix.
 
 `paru` is preinstalled but AUR use is disabled by default. It must build as the
 ordinary Android app user, with no root assumption. `sudo` is present for the
@@ -37,6 +38,26 @@ has no package-provided `sudo`. `SudoCapabilityDetector` only marks
 the `su` path usable after an elevation probe; otherwise `SudoPolicy` returns
 an explicit denial. This boundary does not grant Android permissions or fake
 root state.
+
+## Arch compatibility profile
+
+The pacman bootstrap also includes `proot` and `proot-distro`. Native
+Termux-Pacman packages use the Android/Bionic ABI directly. A package that
+targets Arch/glibc is routed to an isolated `proot-distro` Arch rootfs instead
+of being copied into the native prefix. This is userspace simulation, not a
+kernel or root compatibility promise. Packages that require systemd, kernel
+modules, or real root are rejected with an explicit reason. The first rootfs
+setup still requires network access and has not been accepted on a physical
+device in this release. `ArchCompatibilityPolicy` rejects an undeclared
+runtime, foreign ABI, or native package marked `requiresGlibc`; it only returns
+the proot decision for descriptors explicitly marked `ARCH_GLIBC`. AUR is an
+explicitly unsupported descriptor in the default policy; it is not silently
+treated as an Arch repository package.
+
+After bootstrap, `veyterm-arch` (also available as the `archlinux` shell alias)
+enters that separate rootfs. It does not auto-download the rootfs; run
+`proot-distro install archlinux` once, then use `veyterm-arch pacman -Syu` or
+`veyterm-arch` for an interactive shell.
 
 The manifest remains `sourceReady=false` until the generated archives are
 published with independent signing/keyring provenance. `app/build.gradle`

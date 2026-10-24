@@ -1,0 +1,18 @@
+# VeyTerm Arch/glibc compatibility contract (design manifest)
+# This is not shipped as a rootfs. A future proot installer must provide a
+# separately verified Arch rootfs before selecting this profile.
+variant=arch-proot-glibc
+runtime=proot
+manager=pacman
+libc=glibc
+prefix=/data/data/com.veyterm/files/home/.local/share/veyterm/proot/arch
+rootfs_layout=/etc,/usr,/var,/tmp,/home
+architecture_policy=match-device-abi-and-rootfs-architecture
+arch_repository=allowed-inside-proot-only
+termux_repository=unsupported-in-glibc-rootfs
+aur_default=disabled
+aur_requires=explicit-user-enable,per-package-source-review,ordinary-user-build
+kernel_privileges=unavailable
+signature_policy=required
+rootfs_source_status=not-published
+rollback=stage-rootfs-then-atomic-rename

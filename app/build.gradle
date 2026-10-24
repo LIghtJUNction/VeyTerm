@@ -244,10 +244,10 @@ task downloadBootstraps() {
             // archives. The package repository keyring remains part of the
             // bootstrap; publication still requires an independent release
             // provenance check.
-            downloadBootstrap("aarch64", "97a95aa18214573eeb10808fd77d956ca814a84305de93dd6d6b4f26370861a4", version)
-            downloadBootstrap("arm", "ed7af896d73eb47b5c94aebd5d5050b10469619027d72e43c2d682fdda1049fe", version)
-            downloadBootstrap("i686", "ed3bb99433bff56339e1119057582f7fe0bbf2b3a71ba70e586974756bd6a982", version)
-            downloadBootstrap("x86_64", "be9db03964e0b1a98d89eb2175f83035d1a9beddf9ac7ce72b9a8261567f8a78", version)
+            downloadBootstrap("aarch64", "3d18bb2cddd1fabb7e75b2ef92470134009bf0de28ac25966863f8ebf6c2b959", version)
+            downloadBootstrap("arm", "0a13f9bfcf01894f22f6c8a4d75cbbf11f23622baa6298bfc7007fe966a57ab6", version)
+            downloadBootstrap("i686", "73c908d0fcc2018b3a72d37c437ac040d7c3c09153169d18a0dd9554efd9c83f", version)
+            downloadBootstrap("x86_64", "80b84b339face2ef8822059e46558139f283ee0ae5db4b07d2d36aae40c080c6", version)
         } else {
             throw new GradleException("Unsupported TERMUX_PACKAGE_VARIANT \"" + packageVariant + "\"")
         }

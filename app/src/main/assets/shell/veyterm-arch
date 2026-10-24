@@ -1,0 +1,22 @@
+#!/system/bin/sh
+# Enter the optional Arch/glibc userland managed by proot-distro.
+# This wrapper does not ship a rootfs, never claims Android root, and never
+# mixes Arch files into the native Bionic prefix. Install a rootfs separately:
+#   proot-distro install archlinux
+
+distro="${VEYTERM_ARCH_DISTRO:-archlinux}"
+case "$distro" in
+  ''|*[!a-z0-9_-]*|[!a-z0-9]*)
+    echo "VeyTerm: invalid Arch distro name." >&2
+    exit 2
+    ;;
+  *) ;;
+esac
+if ! command -v proot-distro >/dev/null 2>&1; then
+  echo "VeyTerm: proot-distro is not installed in the native prefix." >&2
+  exit 127
+fi
+if [ "$#" -eq 0 ]; then
+  exec proot-distro login "$distro"
+fi
+exec proot-distro login "$distro" -- "$@"

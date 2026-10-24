@@ -1,18 +1,28 @@
 # VeyTerm PACMAN_ANDROID_7 bootstrap contract (design manifest)
-# This file is not an installable archive. The variant stays disabled until a
-# reproducible Arch/Termux packages source publishes all four signed ABIs.
+# This file is not an installable archive. The variant is experimental until a
+# reproducible Arch/Termux packages source publishes all four independently
+# signed ABIs.
 variant=pacman-android-7
+runtime=termux-android
 manager=pacman
 package_format=pkg.tar.zst
 prefix=/data/data/com.veyterm/files/usr
+libc=bionic
+arch_repository=proot-only
+glibc_runtime=proot-arch-glibc
+termux_repository=allowed-in-native-userland
 signature_policy=required
 keyring=archlinux-keyring
 repository_sync=required-after-first-launch
 aur_default=disabled
 aur_build_user=ordinary-user
-required_packages=pacman,paru,sudo,base-devel,git,ca-certificates,archlinux-keyring,openssl,curl,zstd,fakeroot
-required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo
+required_packages=pacman,paru,sudo,base-devel,git,ca-certificates,archlinux-keyring,openssl,curl,zstd,fakeroot,proot,proot-distro
+required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo,bin/proot,bin/proot-distro
 required_build_tools=base-devel,git,ca-certificates,openssl,zstd,fakeroot
 rollback=stage-prefix-then-atomic-rename
 source_status=experimental-release-v0.118.0-veyterm-pacman
 signature_provenance=sha256-verified-test-release;independent-signing-pending
+bootstrap_sha256_aarch64=3d18bb2cddd1fabb7e75b2ef92470134009bf0de28ac25966863f8ebf6c2b959
+bootstrap_sha256_arm=0a13f9bfcf01894f22f6c8a4d75cbbf11f23622baa6298bfc7007fe966a57ab6
+bootstrap_sha256_i686=73c908d0fcc2018b3a72d37c437ac040d7c3c09153169d18a0dd9554efd9c83f
+bootstrap_sha256_x86_64=80b84b339face2ef8822059e46558139f283ee0ae5db4b07d2d36aae40c080c6

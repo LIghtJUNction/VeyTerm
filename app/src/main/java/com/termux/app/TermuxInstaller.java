@@ -391,6 +391,7 @@ final class TermuxInstaller {
         installDefaultShellConfig(activity, "shell/veyterm.zshrc", TERMUX_HOME_DIR_PATH + "/.zshrc");
         installDefaultShellConfig(activity, "shell/veyterm.bashrc", TERMUX_HOME_DIR_PATH + "/.bashrc");
         installDefaultExecutable(activity, "shell/veyterm-sudo", TERMUX_PREFIX_DIR_PATH + "/bin/sudo");
+        installDefaultExecutable(activity, "shell/veyterm-arch", TERMUX_PREFIX_DIR_PATH + "/bin/veyterm-arch");
     }
 
     private static void installDefaultShellConfig(Activity activity, String assetPath, String targetPath) {

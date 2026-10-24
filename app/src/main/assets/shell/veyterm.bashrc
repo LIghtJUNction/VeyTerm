@@ -16,3 +16,4 @@ export VISUAL="${VISUAL:-$EDITOR}"
 alias ll='ls -la'
 alias la='ls -A'
 alias l='ls -CF'
+alias archlinux='veyterm-arch'
