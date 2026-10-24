@@ -14,12 +14,12 @@ confused with the source repository.
 
 ## Package identity boundary
 
-The current Android application ID remains `com.termux`, and the bootstrap
-binaries still target `/data/data/com.termux/files/usr`. A future independent
-VeyTerm package must change these together:
+VeyTerm uses Android application ID `com.veyterm`, and the rebuilt bootstrap
+archives target `/data/data/com.veyterm/files/usr`. The Java namespace remains
+`com.termux` for existing classes and JNI symbols; `TermuxConstants` keeps that
+namespace separate from the installed application ID.
 
-1. Rebuild Termux bootstrap archives and packages with the new prefix.
-2. Update `TermuxConstants`, manifest placeholders, shortcuts, and any plugin
-   intents that still contain the old package ID.
-3. Build and install a clean APK, then verify bootstrap installation and a
-   real shell session on Android.
+The bootstrap build currently covers the core apt bootstrap package set for
+all four Android architectures. A complete VeyTerm package repository still
+needs to be published before arbitrary `pkg install` operations can use
+VeyTerm-specific binaries.

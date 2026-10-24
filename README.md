@@ -9,13 +9,11 @@ workflows.
 ## Current fork boundary
 
 - The user-facing application name is **VeyTerm**.
-- The Android application ID and `$PREFIX` are still `com.termux` while the
-  bootstrap archives are unchanged. This keeps the downloaded upstream
-  bootstrap binaries runnable; changing the package ID requires rebuilding them
-  with the new path.
-- The Java package names still use `com.termux` for the same compatibility
-  reason. New VeyTerm features should be isolated behind project-specific
-  modules and migrated deliberately.
+- The Android application ID and `$PREFIX` use `com.veyterm`. Bootstrap
+  archives are rebuilt for `/data/data/com.veyterm/files/usr`.
+- The Java package names still use `com.termux` as an internal namespace for
+  existing classes and JNI symbols. New VeyTerm features should be isolated
+  behind project-specific modules and migrated deliberately.
 - The original upstream documentation is kept in
   [`README_TERMUX.md`](README_TERMUX.md).
 
