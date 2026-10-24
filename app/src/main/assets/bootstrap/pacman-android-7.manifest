@@ -14,4 +14,5 @@ required_packages=pacman,paru,sudo,base-devel,git,ca-certificates,archlinux-keyr
 required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo
 required_build_tools=base-devel,git,ca-certificates,openssl,zstd,fakeroot
 rollback=stage-prefix-then-atomic-rename
-source_status=blocked-until-arch-bootstrap-published
+source_status=experimental-release-v0.118.0-veyterm-pacman
+signature_provenance=sha256-verified-test-release;independent-signing-pending
