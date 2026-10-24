@@ -1,13 +1,11 @@
 ---
-page_ref: /docs/apps/termux/index.html
+page_ref: /docs/apps/veyterm/index.html
 ---
 
-# Termux App Docs
+# VeyTerm Docs
 
 <!--- DOC_HEADER_PLACEHOLDER -->
 
-Welcome to documentation for the [Termux App].
+Welcome to the VeyTerm Android terminal documentation.
 
 ##
-
-[Termux App]: https://github.com/termux/termux-app
