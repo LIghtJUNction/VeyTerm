@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -69,6 +70,8 @@ public final class TerminalView extends View {
     /** The top row of text to display. Ranges from -activeTranscriptRows to 0. */
     int mTopRow;
     int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
+
+    private Bitmap mSynchronizedFrame;
 
     float mScaleFactor = 1.f;
     final GestureAndScaleRecognizer mGestureRecognizer;
@@ -292,6 +295,8 @@ public final class TerminalView extends View {
 
         mTermSession = session;
         mEmulator = null;
+        mSynchronizedFrame = null;
+        if (session != null) session.finishSynchronizedOutput();
         mCombiningAccent = 0;
 
         // The emulator's cached value will be read in `updateSize()` when emulator is set.
@@ -1022,6 +1027,10 @@ public final class TerminalView extends View {
     protected void onDraw(Canvas canvas) {
         if (mEmulator == null) {
             canvas.drawColor(0XFF000000);
+        } else if (mEmulator.isSynchronizedOutputEnabled() && mSynchronizedFrame != null) {
+            // Cursor blinking, scrolling or another view can still trigger a draw
+            // during a batch. Repaint the frozen frame instead of the partial grid.
+            canvas.drawBitmap(mSynchronizedFrame, 0, 0, null);
         } else {
             // render the terminal view and highlight any selected text
             int[] sel = mDefaultSelectors;
@@ -1034,6 +1043,19 @@ public final class TerminalView extends View {
             // render the text selection handles
             renderTextSelection();
         }
+    }
+
+    public void captureSynchronizedOutputFrame() {
+        if (mEmulator == null || getWidth() == 0 || getHeight() == 0) return;
+        if (mSynchronizedFrame == null || mSynchronizedFrame.getWidth() != getWidth()
+            || mSynchronizedFrame.getHeight() != getHeight()) {
+            mSynchronizedFrame = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+        }
+        Canvas frameCanvas = new Canvas(mSynchronizedFrame);
+        frameCanvas.drawColor(mEmulator.mColors.mCurrentColors[com.termux.terminal.TextStyle.COLOR_INDEX_BACKGROUND]);
+        int[] sel = mDefaultSelectors;
+        if (mTextSelectionCursorController != null) mTextSelectionCursorController.getSelectors(sel);
+        mRenderer.render(mEmulator, frameCanvas, mTopRow, sel[0], sel[1], sel[2], sel[3]);
     }
 
     public TerminalSession getCurrentSession() {

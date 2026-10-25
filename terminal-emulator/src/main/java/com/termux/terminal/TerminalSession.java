@@ -70,6 +70,8 @@ public final class TerminalSession extends TerminalOutput {
 
     final Handler mMainThreadHandler = new MainThreadHandler();
 
+    private final Runnable mSynchronizedOutputTimeout = this::finishSynchronizedOutput;
+
     private final String mShellPath;
     private final String mCwd;
     private final String[] mArgs;
@@ -104,6 +106,7 @@ public final class TerminalSession extends TerminalOutput {
         if (mEmulator == null) {
             initializeEmulator(columns, rows, cellWidthPixels, cellHeightPixels);
         } else {
+            finishSynchronizedOutput();
             JNI.setPtyWindowSize(mTerminalFileDescriptor, rows, columns, cellWidthPixels, cellHeightPixels);
             mEmulator.resize(columns, rows, cellWidthPixels, cellHeightPixels);
         }
@@ -222,7 +225,26 @@ public final class TerminalSession extends TerminalOutput {
 
     /** Notify the {@link #mClient} that the screen has changed. */
     protected void notifyScreenUpdate() {
+        if (mEmulator != null && mEmulator.isSynchronizedOutputEnabled()) return;
+        mMainThreadHandler.removeCallbacks(mSynchronizedOutputTimeout);
         mClient.onTextChanged(this);
+    }
+
+    @Override
+    public void onSynchronizedOutputStarted() {
+        // A crashed application must not leave the display frozen indefinitely.
+        // Repeated begin markers do not extend this deadline.
+        mMainThreadHandler.removeCallbacks(mSynchronizedOutputTimeout);
+        mMainThreadHandler.postDelayed(mSynchronizedOutputTimeout, 1000);
+        mClient.onSynchronizedOutputStarted(this);
+    }
+
+    public void finishSynchronizedOutput() {
+        mMainThreadHandler.removeCallbacks(mSynchronizedOutputTimeout);
+        if (mEmulator != null && mEmulator.isSynchronizedOutputEnabled()) {
+            mEmulator.finishSynchronizedOutput();
+            notifyScreenUpdate();
+        }
     }
 
     /** Reset state for terminal emulator state. */
@@ -244,6 +266,7 @@ public final class TerminalSession extends TerminalOutput {
 
     /** Cleanup resources when the process exits. */
     void cleanupResources(int exitStatus) {
+        finishSynchronizedOutput();
         synchronized (this) {
             mShellPid = -1;
             mShellExitStatus = exitStatus;

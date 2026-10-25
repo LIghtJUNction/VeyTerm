@@ -373,6 +373,17 @@ public final class TerminalEmulator {
      */
     private int mCurrentDecSetFlags, mSavedDecSetFlags;
 
+    private boolean mSynchronizedOutput;
+
+    public boolean isSynchronizedOutputEnabled() {
+        return mSynchronizedOutput;
+    }
+
+    /** Also used by the session's safety timeout, resize and process exit. */
+    public void finishSynchronizedOutput() {
+        mSynchronizedOutput = false;
+    }
+
     /**
      * If insert mode (as opposed to replace mode) is active. In insert mode new characters are inserted, pushing
      * existing text to the right. Characters moved past the right margin are lost.
@@ -1076,6 +1087,8 @@ public final class TerminalEmulator {
                             if (mode == 47 || mode == 1047 || mode == 1049) {
                                 // This state is carried by mScreen pointer.
                                 value = (mScreen == mAltBuffer) ? 1 : 2;
+                            } else if (mode == 2026) {
+                                value = mSynchronizedOutput ? 1 : 2;
                             } else {
                                 int internalBit = mapDecSetBitToInternalBit(mode);
                                 if (internalBit != -1) {
@@ -1878,6 +1891,16 @@ public final class TerminalEmulator {
             }
             case 2004:
                 // Bracketed paste mode - setting bit is enough.
+                break;
+            case 2026:
+                // DEC synchronized output: parsing and terminal replies continue,
+                // while the view keeps displaying the preceding complete frame.
+                if (setting && !mSynchronizedOutput) {
+                    mSynchronizedOutput = true;
+                    mSession.onSynchronizedOutputStarted();
+                } else if (!setting) {
+                    finishSynchronizedOutput();
+                }
                 break;
             default:
                 unknownParameter(externalBit);
@@ -3484,6 +3507,7 @@ public final class TerminalEmulator {
 
     /** Reset terminal state so user can interact with it regardless of present state. */
     public void reset() {
+        finishSynchronizedOutput();
         setCursorStyle();
         mArgIndex = 0;
         mContinueSequence = false;

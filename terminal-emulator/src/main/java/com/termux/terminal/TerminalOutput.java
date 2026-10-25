@@ -29,4 +29,7 @@ public abstract class TerminalOutput {
 
     public abstract void onColorsChanged();
 
+    /** Capture the previous frame before a synchronized update changes the grid. */
+    public void onSynchronizedOutputStarted() {}
+
 }

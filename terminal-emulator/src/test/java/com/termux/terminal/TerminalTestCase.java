@@ -23,6 +23,13 @@ public abstract class TerminalTestCase extends TestCase {
 		public int bellsRung = 0;
 		public int colorsChanged = 0;
 
+        public int synchronizedFramesStarted = 0;
+
+        @Override
+        public void onSynchronizedOutputStarted() {
+            synchronizedFramesStarted++;
+        }
+
 		@Override
 		public void write(byte[] data, int offset, int count) {
 			baos.write(data, offset, count);

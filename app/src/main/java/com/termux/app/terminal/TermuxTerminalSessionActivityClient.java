@@ -122,6 +122,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     @Override
+    public void onSynchronizedOutputStarted(@NonNull TerminalSession session) {
+        if (mActivity.isVisible() && mActivity.getCurrentSession() == session)
+            mActivity.getTerminalView().captureSynchronizedOutputFrame();
+    }
+
+    @Override
     public void onTitleChanged(@NonNull TerminalSession updatedSession) {
         if (!mActivity.isVisible()) return;
 

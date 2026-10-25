@@ -14,6 +14,10 @@ release/
 # Rust build artifacts
 rust-core/target/
 
+# Python verification tools
+__pycache__/
+*.pyc
+
 # Local configuration file (sdk path, etc)
 local.properties
 
