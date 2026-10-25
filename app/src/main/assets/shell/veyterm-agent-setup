@@ -1,0 +1,39 @@
+#!/data/data/com.veyterm/files/usr/bin/bash
+# Run in VeyTerm after: proot-distro install --name agents debian:stable-slim
+set -euo pipefail
+
+printf 'ANDROID_APP_UID=%s\n' "$(id -u)"
+proot-distro login agents -- /bin/bash -s <<'GUEST'
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+cat /etc/os-release
+apt-get update
+apt-get install -y --no-install-recommends ca-certificates curl git xz-utils \
+    libatomic1 libstdc++6 procps util-linux python3 build-essential
+
+if command -v node >/dev/null 2>&1 && node -e 'const [major,minor]=process.versions.node.split(".").map(Number); process.exit(major>22 || major===22 && minor>=19 ? 0 : 1)'; then
+    node --version
+    npm --version
+    printf 'AGENT_ENVIRONMENT_READY\n'
+    exit 0
+fi
+
+case "$(uname -m)" in
+    x86_64) node_arch=x64 ;;
+    aarch64) node_arch=arm64 ;;
+    *) echo 'These official Agent builds require x86_64 or aarch64.' >&2; exit 2 ;;
+esac
+node_version=v24.22.1
+archive="node-$node_version-linux-$node_arch.tar.xz"
+work_directory="$(mktemp -d)"
+trap 'rm -rf "$work_directory"' EXIT
+cd "$work_directory"
+curl -fL --retry 3 "https://nodejs.org/dist/$node_version/SHASUMS256.txt" -o SHASUMS256.txt
+curl -fL --retry 3 "https://nodejs.org/dist/$node_version/$archive" -o "$archive"
+grep "  $archive\$" SHASUMS256.txt | sha256sum -c -
+tar -xJf "$archive" -C /usr/local --strip-components=1
+node --version
+npm --version
+git --version
+printf 'AGENT_ENVIRONMENT_READY\n'
+GUEST

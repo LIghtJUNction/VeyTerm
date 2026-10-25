@@ -6,6 +6,9 @@ terminal emulator, Android integration, shell bootstrap flow, and shared
 libraries from that upstream project so they can be extended with native AI
 workflows.
 
+The current tested APKs are available in the
+[native bootstrap release](https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026).
+
 ## Current fork boundary
 
 - The user-facing application name is **VeyTerm**.
@@ -17,13 +20,27 @@ workflows.
 - The original upstream documentation is kept in
   [`README_TERMUX.md`](README_TERMUX.md).
 
+## Coding Agents
+
+Run `veyterm-agents install` to install Claude Code, Codex, Pi, Antigravity CLI,
+Cursor CLI and Grok Build in an optional Linux environment. Start one in your
+project with, for example, `veyterm-agents codex`. Setup and the tested versions
+are documented in [`docs/AGENT_COMPATIBILITY.md`](docs/AGENT_COMPATIBILITY.md).
+
 ## Build locally
 
-Use Android Studio or the Gradle wrapper. A debug APK can be built with:
+Use Android Studio or the Gradle wrapper, with Python 3.11+ available for the
+bootstrap runtime-path check. A debug APK can be built with:
 
 ```bash
 ./gradlew assembleDebug
 ```
+
+For a local x86_64 emulator build, use
+`./gradlew :app:assembleDebug -PveytermDebugAbi=x86_64`. This verifies the
+included bootstrap and produces an x86_64 split APK. Release builds always
+require all four ABIs. Bootstrap source and signing instructions are in
+[`docs/BOOTSTRAP_BUILD.md`](docs/BOOTSTRAP_BUILD.md).
 
 The generated APK uses a `veyterm-app_...apk` filename. Unit tests can be run
 locally with:

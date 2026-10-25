@@ -12,6 +12,21 @@ ext {
     // by replacing $PREFIX since app code is dependant on the variant used to build the APK.
     // Supported values are: [ "pacman-android-7" "apt-android-7" "apt-android-5" ]
     packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "pacman-android-7" // Default: "pacman-android-7"
+    def abiArchitectures = ["arm64-v8a": "aarch64", "armeabi-v7a": "arm", "x86": "i686", "x86_64": "x86_64"]
+    def debugAbi = project.findProperty("veytermDebugAbi")?.toString()
+    if (debugAbi != null && (!abiArchitectures.containsKey(debugAbi) ||
+        gradle.startParameter.taskNames.any { it.contains("Release") })) {
+        throw new GradleException("veytermDebugAbi selects one supported ABI for local debug builds only")
+    }
+    nativeAbis = debugAbi != null ? [debugAbi] : abiArchitectures.keySet().toList()
+    bootstrapArchitectures = nativeAbis.collect { abiArchitectures[it] }
+    if (debugAbi != null) {
+        gradle.taskGraph.whenReady { graph ->
+            if (graph.allTasks.any { it.project == project && it.name.contains("Release") }) {
+                throw new GradleException("Release builds must include and verify all four ABIs")
+            }
+        }
+    }
 }
 
 android {
@@ -66,6 +81,7 @@ android {
         externalNativeBuild {
             ndkBuild {
                 cFlags "-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections"
+                abiFilters(*project.ext.nativeAbis)
             }
         }
 
@@ -74,8 +90,8 @@ android {
                 enable ((gradle.startParameter.taskNames.any { it.contains("Debug") } && splitAPKsForDebugBuilds == "1") ||
                     (gradle.startParameter.taskNames.any { it.contains("Release") } && splitAPKsForReleaseBuilds == "1"))
                 reset ()
-                include 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
-                universalApk true
+                include(*project.ext.nativeAbis)
+                universalApk(project.ext.nativeAbis.size() > 1)
             }
         }
     }
@@ -132,6 +148,9 @@ android {
     packagingOptions {
         jniLibs {
             useLegacyPackaging true
+            ["x86", "x86_64", "armeabi-v7a", "arm64-v8a"].findAll { !project.ext.nativeAbis.contains(it) }.each {
+                excludes.add("**/${it}/*.so")
+            }
         }
     }
 
@@ -172,6 +191,7 @@ def validateVersionName(String versionName) {
 }
 
 def downloadBootstrap(String arch, String expectedChecksum, String version) {
+    if (!project.ext.bootstrapArchitectures.contains(arch)) return
     def digest = java.security.MessageDigest.getInstance("SHA-256")
 
     def localUrl = "src/main/cpp/bootstrap-" + arch + ".zip"
@@ -239,24 +259,64 @@ task downloadBootstraps() {
             downloadBootstrap("i686", "46dcfeb5eef67ba765498db9fe4c50dc4690805139aa0dd141a9d8ee0693cd27", version)
             downloadBootstrap("x86_64", "615b590679ee6cd885b7fd2ff9473c845e920f9b422f790bb158c63fe42b8481", version)
         } else if (packageVariant == "pacman-android-7") {
-            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "v0.118.0-veyterm-pacman"
-            // These checksums identify the reproducibly generated four-ABI
-            // archives. The package repository keyring remains part of the
-            // bootstrap; publication still requires an independent release
-            // provenance check.
-            downloadBootstrap("aarch64", "3d18bb2cddd1fabb7e75b2ef92470134009bf0de28ac25966863f8ebf6c2b959", version)
-            downloadBootstrap("arm", "0a13f9bfcf01894f22f6c8a4d75cbbf11f23622baa6298bfc7007fe966a57ab6", version)
-            downloadBootstrap("i686", "73c908d0fcc2018b3a72d37c437ac040d7c3c09153169d18a0dd9554efd9c83f", version)
-            downloadBootstrap("x86_64", "80b84b339face2ef8822059e46558139f283ee0ae5db4b07d2d36aae40c080c6", version)
+            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "veyterm-native-20261026"
+            // All four archives contain packages built for the private app
+            // prefix. Only the public repository key is shipped; each device
+            // creates its own local pacman trust state on first startup.
+            downloadBootstrap("aarch64", "93a6ef78596686e11d16afe40d5c5b49e221ab5601c4999eaf9c998820f8b2ef", version)
+            downloadBootstrap("arm", "6aa1fe461a6b69923779346550367abc03c2da0a29972e420fb3e1ba3b34f5a2", version)
+            downloadBootstrap("i686", "2912e1f96d2c6121a64a7c2d3c68b9e8bde08ab6b9a2d33d5ddaea974880e83f", version)
+            downloadBootstrap("x86_64", "1cc4129142fae867525514ce2d9d6f3ead9d8bd274be83f60c1457abb3cbfd3c", version)
         } else {
             throw new GradleException("Unsupported TERMUX_PACKAGE_VARIANT \"" + packageVariant + "\"")
         }
     }
 }
 
+tasks.register("verifyBootstraps", Exec) {
+    group = "verification"
+    description = "Reject native bootstraps containing upstream runtime paths or placeholder executables."
+    dependsOn(downloadBootstraps)
+    onlyIf { project.ext.packageVariant == "pacman-android-7" }
+    def python = System.getenv("VEYTERM_PYTHON") ?: (System.getProperty("os.name").toLowerCase().contains("windows") ? "python" : "python3")
+    commandLine([python, rootProject.file("tools/verify_bootstrap.py").absolutePath] +
+        project.ext.bootstrapArchitectures.collect { file("src/main/cpp/bootstrap-${it}.zip").absolutePath })
+}
+
 afterEvaluate {
     android.applicationVariants.all { variant ->
-        variant.javaCompileProvider.get().dependsOn(downloadBootstraps)
+        variant.javaCompileProvider.get().dependsOn(tasks.named("verifyBootstraps"))
+        def apkFiles = variant.outputs.collect { file("$buildDir/outputs/apk/${variant.dirName}/${it.outputFileName}") }
+        def prepareApk = tasks.register("prepare${variant.name.capitalize()}BootstrapApk") {
+            dependsOn(tasks.named("verifyBootstraps"))
+            inputs.files(project.ext.bootstrapArchitectures.collect { file("src/main/cpp/bootstrap-${it}.zip") })
+            inputs.files(file("src/main/cpp/termux-bootstrap.c"), file("src/main/cpp/termux-bootstrap-zip.S"), file("src/main/cpp/Android.mk"))
+            def stamp = file("$buildDir/intermediates/bootstrap-apk/${variant.name}.stamp")
+            outputs.file(stamp)
+            doLast {
+                // Incremental ZIP updates can retain the previous 100 MB blob as
+                // unused space. Missing outputs make AGP package a compact APK.
+                apkFiles.each { delete(it) }
+                stamp.parentFile.mkdirs()
+                stamp.text = "native bootstrap packaging refreshed\n"
+            }
+        }
+        variant.packageApplicationProvider.configure { dependsOn(prepareApk) }
+        def apkCheck = tasks.register("verify${variant.name.capitalize()}ApkBootstraps", Exec) {
+            group = "verification"
+            dependsOn(variant.packageApplicationProvider)
+            def python = System.getenv("VEYTERM_PYTHON") ?: (System.getProperty("os.name").toLowerCase().contains("windows") ? "python" : "python3")
+            commandLine([python, rootProject.file("tools/verify_apk_bootstrap.py").absolutePath,
+                "--bootstrap-directory", file("src/main/cpp").absolutePath] + apkFiles.collect { it.absolutePath })
+        }
+        variant.assembleProvider.configure { dependsOn(apkCheck) }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name.startsWith("configureNdkBuild") || task.name.startsWith("buildNdkBuild")) {
+        task.dependsOn(tasks.named("verifyBootstraps"))
+        task.inputs.files(project.ext.bootstrapArchitectures.collect { file("src/main/cpp/bootstrap-${it}.zip") })
     }
 }
 

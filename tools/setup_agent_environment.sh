@@ -1,0 +1,1 @@
+../app/src/main/assets/shell/veyterm-agent-setup

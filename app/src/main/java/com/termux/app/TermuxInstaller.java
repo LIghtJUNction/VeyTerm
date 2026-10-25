@@ -24,13 +24,13 @@ import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -161,8 +161,7 @@ final class TermuxInstaller {
                     final byte[] buffer = new byte[8096];
                     final List<Pair<String, String>> symlinks = new ArrayList<>(50);
 
-                    final byte[] zipBytes = loadZipBytes();
-                    try (ZipInputStream zipInput = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+                    try (ZipInputStream zipInput = new ZipInputStream(new BootstrapArchiveInputStream(loadZipBuffer()))) {
                         ZipEntry zipEntry;
                         while ((zipEntry = zipInput.getNextEntry()) != null) {
                             if (zipEntry.getName().equals("SYMLINKS.txt")) {
@@ -393,6 +392,9 @@ final class TermuxInstaller {
         installDefaultShellConfig(activity, "shell/veyterm.bashrc", TERMUX_HOME_DIR_PATH + "/.bashrc");
         installDefaultExecutable(activity, "shell/veyterm-sudo", TERMUX_PREFIX_DIR_PATH + "/bin/sudo");
         installDefaultExecutable(activity, "shell/veyterm-arch", TERMUX_PREFIX_DIR_PATH + "/bin/veyterm-arch");
+        installDefaultExecutable(activity, "shell/veyterm-agents", TERMUX_PREFIX_DIR_PATH + "/bin/veyterm-agents");
+        installDefaultExecutable(activity, "shell/veyterm-agent-setup", TERMUX_PREFIX_DIR_PATH + "/libexec/veyterm-agent-setup");
+        installDefaultExecutable(activity, "shell/veyterm-agent-install", TERMUX_PREFIX_DIR_PATH + "/libexec/veyterm-agent-install");
     }
 
     private static void installDefaultShellConfig(Activity activity, String assetPath, String targetPath) {
@@ -423,14 +425,14 @@ final class TermuxInstaller {
             byte[] buffer = new byte[4096];
             int read;
             while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
-            Error error = FileUtils.writeTextToFile("VeyTerm sudo shim", targetPath,
+            Error error = FileUtils.writeTextToFile("VeyTerm bundled helper", targetPath,
                 Charset.forName("UTF-8"), output.toString("UTF-8"), false);
             if (error != null) {
                 Logger.logErrorExtended(LOG_TAG, error.toString());
                 return;
             }
             if (!target.setExecutable(true, false)) {
-                Logger.logErrorExtended(LOG_TAG, "Unable to mark sudo shim executable: " + targetPath);
+                Logger.logErrorExtended(LOG_TAG, "Unable to mark bundled helper executable: " + targetPath);
             }
         } catch (Exception e) {
             Logger.logErrorExtended(LOG_TAG, "Unable to install default executable " + assetPath + "\n" +
@@ -438,12 +440,12 @@ final class TermuxInstaller {
         }
     }
 
-    public static byte[] loadZipBytes() {
+    public static ByteBuffer loadZipBuffer() {
         // Only load the shared library when necessary to save memory usage.
         System.loadLibrary("termux-bootstrap");
         return getZip();
     }
 
-    public static native byte[] getZip();
+    public static native ByteBuffer getZip();
 
 }

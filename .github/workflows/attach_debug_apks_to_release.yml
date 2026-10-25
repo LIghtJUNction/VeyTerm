@@ -7,11 +7,13 @@ on:
 
 jobs:
   attach-apks:
+    # Native bootstrap releases already contain verified package assets.
+    if: ${{ !startsWith(github.event.release.tag_name, 'veyterm-native-') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package_variant: [ apt-android-7, apt-android-5 ]
+        package_variant: [ pacman-android-7 ]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -28,9 +30,6 @@ jobs:
         run: |
           exit_on_error() {
               echo "$1"
-              echo "Deleting '$RELEASE_VERSION_NAME' release and '$GITHUB_REF' tag"
-              hub release delete "$RELEASE_VERSION_NAME"
-              git push --delete origin "$GITHUB_REF"
               exit 1
           }
 

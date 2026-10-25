@@ -1,6 +1,7 @@
 package com.termux.shared.termux.shell.command.environment;
 
 import android.content.Context;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
 
@@ -16,6 +17,7 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.shell.TermuxShellUtils;
 
 import java.nio.charset.Charset;
+import java.io.File;
 import java.util.HashMap;
 
 /**
@@ -77,9 +79,15 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
 
         environment.put(ENV_HOME, TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.put(ENV_PREFIX, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
+        // Current native package scripts also read the pre-v0.119 variable names.
+        environment.put("TERMUX_APP_PACKAGE_MANAGER", TermuxBootstrap.isAppPackageManagerPACMAN() ? "pacman" : "apt");
+        environment.put("TERMUX_MAIN_PACKAGE_FORMAT", TermuxBootstrap.isAppPackageManagerPACMAN() ? "pacman" : "debian");
+        environment.put("ANDROID__BUILD_VERSION_SDK", Integer.toString(Build.VERSION.SDK_INT));
 
         // If failsafe is not enabled, then we keep default PATH and TMPDIR so that system binaries can be used
         if (!isFailSafe) {
+            File execPreload = new File(TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH, "libtermux-exec.so");
+            if (execPreload.isFile()) environment.put("LD_PRELOAD", execPreload.getAbsolutePath());
             environment.put(ENV_TMPDIR, TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH);
             if (TermuxBootstrap.isAppPackageVariantAPTAndroid5()) {
                 // Termux in android 5/6 era shipped busybox binaries in applets directory

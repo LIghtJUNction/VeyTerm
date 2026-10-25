@@ -1,0 +1,302 @@
+diff --git i/packages/apt/build.sh w/packages/apt/build.sh
+index cb40498..68e50b9 100644
+--- i/packages/apt/build.sh
++++ w/packages/apt/build.sh
+@@ -3,13 +3,13 @@ TERMUX_PKG_DESCRIPTION="Front-end for the dpkg package manager"
+ TERMUX_PKG_LICENSE="GPL-2.0"
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.8.1"
+-TERMUX_PKG_REVISION=2
++TERMUX_PKG_REVISION=3
+ # old tarball are removed in https://deb.debian.org/debian/pool/main/a/apt/apt_${TERMUX_PKG_VERSION}.tar.xz
+ TERMUX_PKG_SRCURL=https://salsa.debian.org/apt-team/apt/-/archive/${TERMUX_PKG_VERSION}/apt-${TERMUX_PKG_VERSION}.tar.bz2
+ TERMUX_PKG_SHA256=87ca18392c10822a133b738118505f7d04e0b31ba1122bf5d32911311cb2dc7e
+ # apt-key requires utilities from coreutils, findutils, gpgv, grep, sed.
+ TERMUX_PKG_DEPENDS="coreutils, dpkg, findutils, gpgv, grep, libandroid-glob, libbz2, libc++, libiconv, libgcrypt, libgnutls, liblz4, liblzma, sed, termux-keyring, termux-licenses, xxhash, zlib, zstd"
+-TERMUX_PKG_BUILD_DEPENDS="docbook-xsl,libdb"
++TERMUX_PKG_BUILD_DEPENDS="libdb"
+ TERMUX_PKG_CONFLICTS="apt-transport-https, libapt-pkg, unstable-repo, game-repo, science-repo"
+ TERMUX_PKG_REPLACES="apt-transport-https, libapt-pkg, unstable-repo, game-repo, science-repo"
+ TERMUX_PKG_PROVIDES="unstable-repo, game-repo, science-repo"
+@@ -29,7 +29,7 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+ -DDPKG_DATADIR=$TERMUX_PREFIX/share/dpkg
+ -DUSE_NLS=OFF
+ -DWITH_DOC=OFF
+--DWITH_DOC_MANPAGES=ON
++-DWITH_DOC_MANPAGES=OFF
+ "
+ 
+ # ubuntu uses instead $PREFIX/lib instead of $PREFIX/libexec to
+@@ -67,9 +67,6 @@ termux_step_pre_configure() {
+ 	# Fix glob() on Android 7.
+ 	LDFLAGS+=" -Wl,--no-as-needed -landroid-glob"
+ 
+-	# for manpage build
+-	local docbook_xsl_version=$(. $TERMUX_SCRIPTDIR/packages/docbook-xsl/build.sh; echo $TERMUX_PKG_VERSION)
+-	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -DDOCBOOK_XSL=$TERMUX_PREFIX/share/xml/docbook/xsl-stylesheets-$docbook_xsl_version-nons"
+ }
+ 
+ termux_step_post_make_install() {
+diff --git i/packages/libxml2/build.sh w/packages/libxml2/build.sh
+index 8894da0..e7844b6 100644
+--- i/packages/libxml2/build.sh
++++ w/packages/libxml2/build.sh
+@@ -3,27 +3,25 @@ TERMUX_PKG_DESCRIPTION="Library for parsing XML documents"
+ TERMUX_PKG_LICENSE="MIT"
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.15.4"
+-TERMUX_PKG_REVISION="1"
++TERMUX_PKG_REVISION="2"
+ TERMUX_PKG_SRCURL="https://download.gnome.org/sources/libxml2/${TERMUX_PKG_VERSION%.*}/libxml2-${TERMUX_PKG_VERSION}.tar.xz"
+ TERMUX_PKG_SHA256=98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
+ TERMUX_PKG_DEPENDS="libandroid-glob, libiconv, zlib"
+-TERMUX_PKG_BUILD_DEPENDS="doxygen, python, readline"
++TERMUX_PKG_BUILD_DEPENDS="readline"
+ TERMUX_PKG_BREAKS="libxml2-dev"
+ TERMUX_PKG_REPLACES="libxml2-dev"
+ TERMUX_PKG_AUTO_UPDATE=true
+-TERMUX_PKG_HOSTBUILD=true
+-TERMUX_PKG_SETUP_PYTHON=true
+ # disabled due to compiler warnings
+ #	-Dthread-alloc=enabled
+ #	-Dtls=enabled
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+-	-Ddocs=enabled
++	-Ddocs=disabled
+ 	-Dhttp=enabled
+ 	-Dlegacy=enabled
+ "
+-# Python bindings
++# Python bindings are not part of the bootstrap runtime.
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS+="
+-	-Dpython=enabled
++	-Dpython=disabled
+ "
+ # `xmllint` history support
+ TERMUX_PKG_EXTRA_CONFIGURE_ARGS+="
+@@ -36,23 +34,8 @@ share/doc/libxml2/xmlcatalog.html
+ share/doc/libxml2/xmllint.html
+ "
+ 
+-termux_step_host_build() {
+-	if [[ "$TERMUX_ON_DEVICE_BUILD" == "false" ]]; then
+-		# We need doxygen, other packages are it's dependencies
+-		termux_download_ubuntu_packages doxygen libfmt10 libspdlog1.15 libxapian30
+-	fi
+-}
+-
+ termux_step_configure() {
+-	if [[ "$TERMUX_ON_DEVICE_BUILD" == "false" ]]; then
+-		export LD_LIBRARY_PATH="$TERMUX_PKG_HOSTBUILD_DIR/ubuntu_packages/usr/lib/x86_64-linux-gnu"
+-		export PATH="$TERMUX_PKG_HOSTBUILD_DIR/ubuntu_packages/usr/bin:$PATH"
+-	fi
+-
+ 	LDFLAGS+=" -landroid-glob"
+-	# This directory is usually made by doxygen
+-	# and python/generator.py expects it to be there.
+-	mkdir -p "$TERMUX_PKG_BUILDDIR/python/doc/xml"
+ 	# # SOVERSION suffix is needed for SONAME of shared libs to avoid conflict
+ 	# # with system ones (in /system/lib64 or /system/lib):
+ 	export TERMUX_MESON_ENABLE_SOVERSION=1
+diff --git i/packages/pacman/build.sh w/packages/pacman/build.sh
+index cafab14..41d3012 100644
+--- i/packages/pacman/build.sh
++++ w/packages/pacman/build.sh
+@@ -3,13 +3,13 @@ TERMUX_PKG_DESCRIPTION="A library-based package manager with dependency support"
+ TERMUX_PKG_LICENSE="GPL-2.0"
+ TERMUX_PKG_MAINTAINER="@Maxython <mixython@gmail.com>"
+ TERMUX_PKG_VERSION=7.1.0
+-TERMUX_PKG_REVISION=9
++TERMUX_PKG_REVISION=11
+ _PALT_VERSION=1.0.1
+ TERMUX_PKG_SRCURL=(https://gitlab.archlinux.org/pacman/pacman/-/releases/v${TERMUX_PKG_VERSION}/downloads/pacman-${TERMUX_PKG_VERSION}.tar.xz
+ 		https://github.com/termux-pacman/pacman-alternatives/archive/refs/tags/v${_PALT_VERSION}.tar.gz)
+ TERMUX_PKG_SHA256=(530e50d7edbb2a22581c6d6707d2113240276c1bec4ee39a99488e1243c32171
+ 		c479e53816b523ad792917710a460accf62045e03dc4fa33ae5564019b02e121)
+-TERMUX_PKG_DEPENDS="bash, curl, gpgme, libandroid-glob, libarchive, libcurl, openssl, termux-licenses, termux-keyring"
++TERMUX_PKG_DEPENDS="bash, binutils, bsdtar, curl, gpgme, libandroid-glob, libarchive, libcurl, openssl, termux-licenses, termux-keyring"
+ TERMUX_PKG_BUILD_DEPENDS="doxygen, asciidoc, nettle"
+ TERMUX_PKG_GROUPS="base-devel"
+ TERMUX_PKG_CONFFILES="etc/pacman.conf, etc/pacman.d/mirrorlist, etc/makepkg.conf, var/log/pacman.log"
+@@ -35,6 +35,22 @@ termux_step_post_configure() {
+ }
+ 
+ termux_step_post_make_install() {
++	# Termux names GNU tools gstrip/gobjcopy/... to coexist with LLVM.
++	# makepkg calls the unprefixed names, including from its tidy helpers.
++	# Give only makepkg a GNU tool path so installing LLVM cannot replace it.
++	local tool
++	mkdir -p "$TERMUX_PREFIX/libexec/makepkg-binutils"
++	for tool in ar addr2line c++filt nm objcopy objdump ranlib readelf size strings strip; do
++		ln -sf "../../bin/g$tool" "$TERMUX_PREFIX/libexec/makepkg-binutils/$tool"
++	done
++	python3 - "$TERMUX_PREFIX/bin/makepkg" "$TERMUX_PREFIX" <<'PY'
++from pathlib import Path
++import sys
++script = Path(sys.argv[1])
++header, separator, body = script.read_text().partition("\n")
++script.write_text(header + separator + f'export PATH="{sys.argv[2]}/libexec/makepkg-binutils:$PATH"\n' + body)
++PY
++
+ 	mkdir -p $TERMUX_PREFIX/etc/pacman.d
+ 	install -m644 $TERMUX_PKG_BUILDER_DIR/mirrorlist $TERMUX_PREFIX/etc/pacman.d/mirrorlist
+ 
+diff --git i/packages/proot-distro/build.sh w/packages/proot-distro/build.sh
+index b9c0ea2..a72a639 100644
+--- i/packages/proot-distro/build.sh
++++ w/packages/proot-distro/build.sh
+@@ -19,6 +19,20 @@ TERMUX_PKG_AUTO_UPDATE=true
+ 
+ termux_step_pre_configure() {
+ 	termux_setup_python_pip
++	python3 - "$TERMUX_APP__DATA_DIR" <<'PY'
++from pathlib import Path
++import sys
++
++for path in Path('.').rglob('*'):
++    if not path.is_file():
++        continue
++    try:
++        text = path.read_text()
++    except UnicodeDecodeError:
++        continue
++    if '/data/data/com.termux' in text:
++        path.write_text(text.replace('/data/data/com.termux', sys.argv[1]))
++PY
+ }
+ 
+ termux_step_create_debscripts() {
+diff --git i/packages/proot/build.sh w/packages/proot/build.sh
+index ecb5f6c..cefd8b5 100644
+--- i/packages/proot/build.sh
++++ w/packages/proot/build.sh
+@@ -17,6 +17,7 @@ TERMUX_PKG_EXTRA_MAKE_ARGS="-C src PROOT_WITH_LIBANDROID_SHMEM=true"
+ export PROOT_UNBUNDLE_LOADER=$TERMUX_PREFIX/libexec/proot
+ 
+ termux_step_pre_configure() {
++	sed -i "s|/data/data/com.termux|${TERMUX_APP__DATA_DIR}|g" src/cli/cli.c
+ 	CPPFLAGS+=" -DARG_MAX=131072 -DVERSION=\\\"${TERMUX_PKG_VERSION}\\\""
+ }
+ 
+diff --git i/packages/sudo/build.sh w/packages/sudo/build.sh
+index 6108ea9..8e66af6 100644
+--- i/packages/sudo/build.sh
++++ w/packages/sudo/build.sh
+@@ -20,6 +20,10 @@ TERMUX_ENV__S_ROOT=${TERMUX_ENV__S_ROOT} \
+ TERMUX_ENV__SS_TERMUX=${TERMUX_ENV__SS_TERMUX} TERMUX_ENV__S_TERMUX=${TERMUX_ENV__S_TERMUX} \
+ TERMUX_ENV__SS_TERMUX_APP=${TERMUX_ENV__SS_TERMUX_APP} TERMUX_ENV__S_TERMUX_APP=${TERMUX_ENV__S_TERMUX_APP}"
+ 
++termux_step_pre_configure() {
++	sed -i "s|/data/data/com.termux|${TERMUX_APP__DATA_DIR}|g" sudo
++}
++
+ termux_step_install_license() {
+ 	mkdir -p "$TERMUX_PREFIX/share/doc/$TERMUX_PKG_NAME/licenses"
+ 	cp -af "$TERMUX_PKG_SRCDIR/LICENSE" "$TERMUX_PREFIX/share/doc/$TERMUX_PKG_NAME/copyright"
+diff --git i/packages/termux-exec/build.sh w/packages/termux-exec/build.sh
+index c73c3df..54abd94 100644
+--- i/packages/termux-exec/build.sh
++++ w/packages/termux-exec/build.sh
+@@ -23,6 +23,14 @@ TERMUX_ENV__SS_TERMUX_ROOTFS=${TERMUX_ENV__SS_TERMUX_ROOTFS} TERMUX_ENV__S_TERMU
+ TERMUX_ENV__SS_TERMUX_EXEC=${TERMUX_ENV__SS_TERMUX_EXEC} TERMUX_ENV__S_TERMUX_EXEC=${TERMUX_ENV__S_TERMUX_EXEC} \
+ TERMUX_ENV__SS_TERMUX_EXEC__TESTS=${TERMUX_ENV__SS_TERMUX_EXEC__TESTS} TERMUX_ENV__S_TERMUX_EXEC__TESTS=${TERMUX_ENV__S_TERMUX_EXEC__TESTS}"
+ 
++termux_step_pre_configure() {
++	# The build variables already configure runtime paths. Keep the installed
++	# script comments and public header examples consistent with that prefix.
++	while IFS= read -r -d '' file; do
++		sed -i "s|/data/data/com.termux|${TERMUX_APP__DATA_DIR}|g" "$file"
++	done < <(find . -type f \( -name '*.h' -o -name '*.sh' -o -name '*.in' \) -print0)
++}
++
+ termux_step_install_license() {
+ 	mkdir -p "$TERMUX_PREFIX/share/doc/$TERMUX_PKG_NAME/licenses"
+ 	cp -af "$TERMUX_PKG_SRCDIR/LICENSE" "$TERMUX_PREFIX/share/doc/$TERMUX_PKG_NAME/copyright"
+diff --git i/packages/termux-tools/build.sh w/packages/termux-tools/build.sh
+index 9973785..15e24b0 100644
+--- i/packages/termux-tools/build.sh
++++ w/packages/termux-tools/build.sh
+@@ -22,6 +22,11 @@ TERMUX_PKG_DEPENDS="bzip2, coreutils, curl, dash, diffutils, findutils, gawk, gr
+ TERMUX_PKG_RECOMMENDS="ed, dos2unix, inetutils, net-tools, patch, unzip"
+ 
+ termux_step_pre_configure() {
++	# configure.ac reads these from the environment rather than --prefix.
++	export TERMUX_APP_PACKAGE TERMUX_PREFIX TERMUX_PACKAGE_FORMAT
++	export TERMUX_PACKAGE_MANAGER="$([ "$TERMUX_PACKAGE_FORMAT" = pacman ] && echo pacman || echo apt)"
++	sed -i "s|/data/data/com.termux|${TERMUX_APP__DATA_DIR}|g" termux.properties
++	sed -i 's|for file in @TERMUX_PREFIX@/bin/bash |for file in @TERMUX_PREFIX@/bin/zsh @TERMUX_PREFIX@/bin/bash @TERMUX_PREFIX@/bin/fish |' scripts/login.in
+ 	autoreconf -vfi
+ }
+ 
+diff --git i/packages/util-linux/build.sh w/packages/util-linux/build.sh
+index e9774d7..2eda88e 100644
+--- i/packages/util-linux/build.sh
++++ w/packages/util-linux/build.sh
+@@ -11,6 +11,7 @@ TERMUX_PKG_LICENSE_FILE="
+ "
+ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="2.42.4"
++TERMUX_PKG_REVISION="1"
+ TERMUX_PKG_SRCURL="https://www.kernel.org/pub/linux/utils/util-linux/v${TERMUX_PKG_VERSION:0:4}/util-linux-${TERMUX_PKG_VERSION}.tar.xz"
+ TERMUX_PKG_SHA256=fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec
+ # <dependency>: <binaries linking to that dependency>
+@@ -54,6 +55,7 @@ ac_cv_type_struct_fanotify_event_info_header=no
+ --disable-nologin
+ --disable-pivot_root
+ --disable-poman
++--without-python
+ --disable-raw
+ --disable-rfkill
+ --disable-switch_root
+diff --git i/scripts/properties.sh w/scripts/properties.sh
+index fe062ea..3e9fd68 100644
+--- i/scripts/properties.sh
++++ w/scripts/properties.sh
+@@ -371,7 +371,7 @@ fi
+ #
+ # Default value: `Termux`
+ ##
+-TERMUX__NAME="Termux"
++TERMUX__NAME="VeyTerm"
+ 
+ ##
+ # The lower case value for `TERMUX__NAME`.
+@@ -464,7 +464,7 @@ TERMUX__REPOS_HOST_ORG_URL="https://github.com/$TERMUX__REPOS_HOST_ORG_NAME"
+ #
+ # Default value: `com.termux`
+ ##
+-TERMUX_APP__PACKAGE_NAME="com.termux"
++TERMUX_APP__PACKAGE_NAME="com.veyterm"
+ TERMUX_APP_PACKAGE="$TERMUX_APP__PACKAGE_NAME" # Deprecated alternative variable for `TERMUX_APP__PACKAGE_NAME`
+ 
+ __termux_build_props__add_variables_validator_actions "TERMUX_APP__PACKAGE_NAME" "app_package_name"
+@@ -1816,7 +1816,7 @@ TERMUX_APP__LNAME="${TERMUX_APP__NAME,,}"
+ # Validation regex: `TERMUX__APPS_APP_IDENTIFIER_REGEX`
+ # Max length: `TERMUX__APPS_APP_IDENTIFIER___MAX_LEN`
+ ##
+-TERMUX_APP__APP_IDENTIFIER="termux"
++TERMUX_APP__APP_IDENTIFIER="veyterm"
+ 
+ 
+ 
+@@ -2180,13 +2180,13 @@ TERMUX_AM_APP__AM_CLASS__CLASS_NAME="$TERMUX_AM_APP__NAMESPACE.Am"
+ # and are compiled locally.
+ # FIXME: Checking for all variables will be added later in repo
+ # changes pull, currently only `TERMUX_REPO_APP__PACKAGE_NAME` is checked.
+-TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
+-TERMUX_REPO_APP__DATA_DIR="/data/data/com.termux"
+-TERMUX_REPO__CORE_DIR="/data/data/com.termux/termux/core"
+-TERMUX_REPO__APPS_DIR="/data/data/com.termux/termux/app"
+-TERMUX_REPO__ROOTFS="/data/data/com.termux/files"
+-TERMUX_REPO__HOME="/data/data/com.termux/files/home"
+-TERMUX_REPO__PREFIX="/data/data/com.termux/files/usr"
++TERMUX_REPO_APP__PACKAGE_NAME="com.veyterm"
++TERMUX_REPO_APP__DATA_DIR="/data/data/com.veyterm"
++TERMUX_REPO__CORE_DIR="/data/data/com.veyterm/termux/core"
++TERMUX_REPO__APPS_DIR="/data/data/com.veyterm/termux/app"
++TERMUX_REPO__ROOTFS="/data/data/com.veyterm/files"
++TERMUX_REPO__HOME="/data/data/com.veyterm/files/home"
++TERMUX_REPO__PREFIX="/data/data/com.veyterm/files/usr"
+ 
+ 
+ 

@@ -1,0 +1,55 @@
+#!/system/bin/sh
+# Official Linux agents run in a separate glibc environment.
+set -eu
+
+prefix="/data/data/com.veyterm/files/usr"
+rootfs="$prefix/var/lib/proot-distro/containers/agents/manifest.json"
+
+case "${1:-}" in
+  -h|--help|help)
+    cat <<'HELP'
+Usage: veyterm-agents setup        Install the Linux/Node development environment
+       veyterm-agents install      Install the six official coding agents
+       veyterm-agents [COMMAND...] Run a command in the current project directory
+
+Examples: veyterm-agents claude
+          veyterm-agents codex
+          veyterm-agents pi
+          veyterm-agents agy
+          veyterm-agents cursor-agent
+          veyterm-agents grok
+HELP
+    exit 0
+    ;;
+esac
+
+if ! command -v proot-distro >/dev/null 2>&1; then
+  echo 'VeyTerm: proot-distro is required.' >&2
+  exit 127
+fi
+
+case "${1:-}" in
+  setup|install)
+    case "$(uname -m)" in
+      x86_64|aarch64) ;;
+      *) echo 'These official Agent builds require a 64-bit environment.' >&2; exit 2 ;;
+    esac
+    if [ ! -f "$rootfs" ]; then
+      proot-distro install --name agents debian:stable-slim
+    fi
+    bash "$prefix/libexec/veyterm-agent-setup"
+    if [ "$1" = install ]; then
+      bash "$prefix/libexec/veyterm-agent-install"
+    fi
+    exit 0
+    ;;
+esac
+
+if [ ! -f "$rootfs" ]; then
+  echo "VeyTerm: run 'veyterm-agents setup' first." >&2
+  exit 1
+fi
+if [ "$#" = 0 ]; then set -- /bin/bash; fi
+exec proot-distro login --bind "$PWD:/workspace" agents -- /bin/bash -lc \
+  'export PATH="$HOME/.local/bin:$HOME/.grok/bin:/usr/local/bin:$PATH"; cd /workspace; exec "$@"' \
+  veyterm-agents "$@"

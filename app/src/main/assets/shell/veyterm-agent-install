@@ -1,0 +1,32 @@
+#!/data/data/com.veyterm/files/usr/bin/bash
+# Official releases, pinned where the upstream package supports version pins.
+set -euo pipefail
+proot-distro login agents -- /bin/bash -s <<'GUEST'
+set -euo pipefail
+export PATH="$HOME/.local/bin:$HOME/.grok/bin:/usr/local/bin:$PATH"
+mkdir -p "$HOME/veyterm-agent-installers"
+cd "$HOME/veyterm-agent-installers"
+
+npm install -g @openai/codex@0.164.0
+codex --version
+npm install -g @anthropic-ai/claude-code@2.1.310
+claude --version
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.4.0
+pi --version
+
+curl -fL --retry 3 https://antigravity.google/cli/install.sh -o agy.sh
+sha256sum agy.sh
+bash agy.sh
+agy --version
+
+curl -fL --retry 3 https://x.ai/cli/install.sh -o grok.sh
+sha256sum grok.sh
+bash grok.sh
+grok --version
+
+curl -fL --retry 3 https://cursor.com/install -o cursor.sh
+sha256sum cursor.sh
+bash cursor.sh
+cursor-agent --version
+printf 'SIX_OFFICIAL_AGENTS_INSTALLED\n'
+GUEST

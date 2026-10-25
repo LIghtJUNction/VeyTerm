@@ -35,9 +35,20 @@ def main():
     body = args.script.read_text() if args.script else args.command + "\n"
     script = (f'exec > "{home}/{stem}.log" 2>&1\n'
               'trap \'printf "\\nVEYTERM_COMMAND_RESULT=%s\\n" "$?"\' EXIT\n'
-              'set -e\n' + body)
+              'set -e\n(\n' + body + '\n)\n')
     shell("run-as", "com.veyterm", "/system/bin/sh", "-c",
           f"cat > files/home/{stem}.sh", data=script.encode())
+    ready_file = f"files/home/{stem}.ready"
+    shell("run-as", "com.veyterm", "rm", "-f", ready_file)
+    for attempt in range(10):
+        ready_command = f"echo READY > {home}/{stem}.ready"
+        shell("input", "text", ready_command.replace(" ", "%s"))
+        shell("input", "keyevent", "KEYCODE_ENTER")
+        time.sleep(2)
+        if shell("run-as", "com.veyterm", "cat", ready_file, check=False).stdout.strip() == b"READY":
+            break
+    else:
+        raise RuntimeError("The terminal did not complete a command round trip")
     command = f"bash {home}/{stem}.sh"
     shell("input", "text", command.replace(" ", "%s"))
     shell("input", "keyevent", "KEYCODE_ENTER")

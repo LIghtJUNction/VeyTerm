@@ -1,49 +1,118 @@
 # VeyTerm bootstrap build
 
-VeyTerm ships a bootstrap archive for each Android ABI. The archives are built
-from the `termux-packages` checkout with the VeyTerm package identity before
-they are published as GitHub release assets.
+VeyTerm needs a bootstrap archive for each Android ABI, with every executable
+compiled for `/data/data/com.veyterm/files/usr`. Extracting an upstream package
+under that directory does not change its ELF runpaths or script interpreters.
 
-## Reproduce the build
+The `v0.118.0-veyterm-pacman` archives listed below are **rejected**: runtime
+inspection found upstream paths and a `paru` placeholder. Their checksums prove
+artifact identity, not that the packages work. Do not regenerate a release with
+the old download-and-relocate generator.
+
+## Build native packages from source
+
+Use `termux/termux-packages` revision
+`582ebd8b2829f017127c65d512493328604dc431` and apply
+[`termux-packages-native-veyterm.patch`](termux-packages-native-veyterm.patch).
+This includes the fork identity, existing cross-build fixes, exported
+`termux-tools` configure variables, and zsh login selection. Copy
+[`packages/paru`](../packages/paru) into that checkout's `packages` directory.
+The paru recipe pins its upstream source commit and checksum, builds the real
+Android executable, and configures repository-only operations by default.
+
+Start the upstream package-builder container and copy the tools into it:
+
+```sh
+# From the patched termux-packages checkout; VeyTerm is a sibling checkout.
+cp -a ../VeyTerm/packages/paru packages/
+./scripts/run-docker.sh true
+docker exec termux-package-builder mkdir -p /home/builder/veyterm-tools
+docker cp -L ../VeyTerm/tools/. termux-package-builder:/home/builder/veyterm-tools/
+docker exec termux-package-builder bash -lc \
+  'cd /home/builder/termux-packages && bash /home/builder/veyterm-tools/build_native_packages.sh'
+```
+
+`build_native_packages.sh` defaults to `x86_64 aarch64 arm i686`, uses two
+compiler jobs, and checks the fork prefix before building. It rebuilds the
+scripts whose generated identity or package-manager mode changed.
+Other locally compiled VeyTerm Debian packages can be reused: the assembler
+converts package metadata and maintainer-script arguments, preserving payload
+bytes, file permissions, and symlinks. It rejects missing runtime dependencies
+and any old prefix in the payload.
+
+## Assemble and sign
+
+On a Linux host with Python 3.11+, `ar`, `vercmp`, `repo-add`, and GnuPG, use a
+package signing key and the URL where the versioned native repository will be
+published. Keep the secret key outside version control. Pass the full signing
+fingerprint, not a short key ID.
+
+```sh
+for arch in x86_64 aarch64 arm i686; do
+  python tools/assemble_pacman_bootstrap.py ../termux-packages-veyterm/output/veyterm-snapshots/"$arch" \
+    --packages-source ../termux-packages-veyterm \
+    --arch "$arch" --output build/native-bootstrap \
+    --signing-key "$VEYTERM_SIGNING_KEY" \
+    --repository-url "$VEYTERM_REPOSITORY_URL"
+done
+python tools/verify_bootstrap.py build/native-bootstrap/bootstrap-*.zip
+```
+
+The output contains four archives, per-ABI signed package repositories, and
+input and output package hashes in `bootstrap-<arch>.packages.json`. Publish the repository
+databases under their ABI-qualified names and retain their detached signatures.
+Use `{arch}` in `VEYTERM_REPOSITORY_URL` when each ABI has a separate repository
+directory or release tag. Build snapshots preserve each ABI's inputs while
+later builds may replace architecture-independent package files.
+For a flat GitHub release, use one common release download URL. Package asset
+names include the target ABI, with URL-sensitive characters normalized; package
+names and versions inside the archives retain their original meaning. Upload
+only filenames listed in the provenance manifests, together with their
+signatures and the ABI-qualified databases. Stale files in a local repository
+directory are not release inputs.
+The native repository has its own VeyTerm keyring; an Arch/glibc guest must use
+the Arch keyring inside that separate rootfs. Ship the public keyring files;
+let the first-start hook create the GnuPG directory and its device-local key.
+Precreating an empty GnuPG directory prevents that initialization.
+
+Before changing the hashes in `app/build.gradle`, verify all four archives.
+Before shipping an APK, install it on a fresh emulator and exercise shell
+startup, package sync/install/remove, `paru`, script execution, and restart.
+Also upgrade an existing broken prefix and verify that user shell configuration
+survives and the previous prefix is retained. Local unit tests cover failed and
+interrupted directory switches, but do not replace those device checks.
+
+Gradle checks both the archive content and the actual `blob`/`blob_size` exported
+from every packaged `libtermux-bootstrap.so`. The NDK assembly object and Gradle
+native tasks explicitly depend on the included zip. This prevents an incremental
+build from shipping an older cached bootstrap despite a successful checksum check.
+Native input changes also force APK repackaging; the APK gate rejects excessive
+unused ZIP space from older embedded blobs. The package gate rejects build-host
+PATH assignments in executable scripts. `makepkg` uses private aliases for GNU
+binutils and includes `bsdtar` without changing the caller's remaining PATH.
+
+Repository databases and packages require signatures. Explicit local package
+installation accepts unsigned packages built by the user and verifies any
+provided signature. The smoke test first installs an intact signed download,
+then rejects a valid package archive with modified contents and its original
+signature. It also builds, installs and removes an unsigned local fixture as
+the ordinary app UID.
+
+The corrected four-ABI data release is `veyterm-native-20261026`. The optional
+official coding-agent environment is described in
+[`AGENT_COMPATIBILITY.md`](AGENT_COMPATIBILITY.md).
+
+## Rejected download-and-relocate build
 
 The older apt build changes are recorded in
 [`termux-packages-veyterm.patch`](termux-packages-veyterm.patch). The current
 pacman bootstrap generator changes are recorded separately in
 [`termux-packages-pacman-veyterm.patch`](termux-packages-pacman-veyterm.patch).
-Apply the pacman patch to the upstream `termux/termux-packages` revision
-recorded below, then generate the four archives:
+Those patches describe the rejected relocation approach. Use the native source
+pipeline above for new builds. The old release tag was
+`v0.118.0-veyterm-pacman`; its values below are historical failure evidence.
 
-```bash
-git clone https://github.com/termux/termux-packages.git termux-packages-veyterm
-cd termux-packages-veyterm
-git checkout 582ebd8b2829f017127c65d512493328604dc431
-git apply ../VeyTerm/docs/termux-packages-pacman-veyterm.patch
-TMPDIR="$HOME/.cache/veyterm-pacman-build" \
-  ./scripts/generate-bootstraps.sh --pm pacman \
-  --architectures aarch64,arm,i686,x86_64 \
-  --add zsh,sudo,git,fakeroot,ca-certificates,curl,openssl,zstd,\
-autoconf,automake,bison,flex,m4,make,file,gettext,pkg-config,patch,\
-proot,proot-distro
-```
-
-The package configuration uses the Android package ID `com.veyterm` and keeps
-the internal Java/JNI namespace `com.termux` for compatibility. The bootstrap
-script follows runtime dependencies while assembling the archive, so build
-only dependencies such as documentation and X11 toolchains are not shipped.
-
-The four resulting files are:
-
-```text
-bootstrap-aarch64.zip
-bootstrap-arm.zip
-bootstrap-i686.zip
-bootstrap-x86_64.zip
-```
-
-Their SHA-256 values are pinned in `app/build.gradle`. The release tag used by
-the current Gradle configuration is `v0.118.0-veyterm-pacman`.
-
-The current build produced these hashes:
+The rejected release has these hashes:
 
 | ABI | SHA-256 |
 | --- | --- |
