@@ -1,2 +1,8 @@
+*           text=auto
+*.bat       text eol=crlf
+*.gradle    text eol=lf
+*.mk        text eol=lf
+*.sh        text eol=lf
+
 # Unified patch context deliberately contains a leading space before source tabs.
 docs/termux-packages-native-veyterm.patch -whitespace
