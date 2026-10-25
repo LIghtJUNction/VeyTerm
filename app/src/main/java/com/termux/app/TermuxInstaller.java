@@ -45,8 +45,7 @@ import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR
 /**
  * Install the Termux bootstrap packages if necessary by following the below steps:
  * <p/>
- * (1) If $PREFIX already exist, assume that it is correct and be done. Note that this relies on that we do not create a
- * broken $PREFIX directory below.
+ * (1) Reuse a validated prefix, or repair a legacy prefix containing upstream paths.
  * <p/>
  * (2) A progress dialog is shown with "Installing..." message and a spinner.
  * <p/>
@@ -60,6 +59,7 @@ import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR
  * (5.1) If the zip entry encountered is SYMLINKS.txt, go through it and remember all symlinks to setup.
  * <p/>
  * (5.2) For every other zip entry, extract it into $STAGING_PREFIX and set execute permissions if necessary.
+ * (6) Validate staging, retain the old prefix, and switch directories. Restore the old prefix if switching fails.
  */
 final class TermuxInstaller {
 
@@ -114,9 +114,11 @@ final class TermuxInstaller {
                 // Existing installations also receive the dependency-free shell
                 // defaults and bounded sudo shim. Existing user files and a real
                 // package-provided sudo are never overwritten.
-                installDefaultShellConfigs(activity);
-                whenDone.run();
-                return;
+                if (new File(TERMUX_PREFIX_DIR, BootstrapTransaction.MARKER).isFile()) {
+                    installDefaultShellConfigs(activity);
+                    whenDone.run();
+                    return;
+                }
             }
         } else if (FileUtils.fileExists(TERMUX_PREFIX_DIR_PATH, false)) {
             Logger.logInfo(LOG_TAG, "The termux prefix directory \"" + TERMUX_PREFIX_DIR_PATH + "\" does not exist but another file exists at its destination.");
@@ -127,6 +129,15 @@ final class TermuxInstaller {
             @Override
             public void run() {
                 try {
+                    File previousPrefix = new File(TERMUX_PREFIX_DIR_PATH + ".previous");
+                    BootstrapTransaction.recover(TERMUX_PREFIX_DIR, previousPrefix);
+                    boolean pacman = "pacman-android-7".equals(com.termux.BuildConfig.TERMUX_PACKAGE_VARIANT);
+                    if (BootstrapTransaction.isHealthy(TERMUX_PREFIX_DIR, pacman)) {
+                        BootstrapTransaction.markHealthy(TERMUX_PREFIX_DIR);
+                        installDefaultShellConfigs(activity);
+                        activity.runOnUiThread(whenDone);
+                        return;
+                    }
                     Logger.logInfo(LOG_TAG, "Installing " + TermuxConstants.TERMUX_APP_NAME + " bootstrap packages.");
 
                     Error error;
@@ -138,22 +149,8 @@ final class TermuxInstaller {
                         return;
                     }
 
-                    // Delete prefix directory or any file at its destination
-                    error = FileUtils.deleteFile("termux prefix directory", TERMUX_PREFIX_DIR_PATH, true);
-                    if (error != null) {
-                        showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error));
-                        return;
-                    }
-
                     // Create prefix staging directory if it does not already exist and set required permissions
                     error = TermuxFileUtils.isTermuxPrefixStagingDirectoryAccessible(true, true);
-                    if (error != null) {
-                        showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error));
-                        return;
-                    }
-
-                    // Create prefix directory if it does not already exist and set required permissions
-                    error = TermuxFileUtils.isTermuxPrefixDirectoryAccessible(true, true);
                     if (error != null) {
                         showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error));
                         return;
@@ -176,7 +173,9 @@ final class TermuxInstaller {
                                     if (parts.length != 2)
                                         throw new RuntimeException("Malformed symlink line: " + line);
                                     String oldPath = parts[0];
-                                    String newPath = TERMUX_STAGING_PREFIX_DIR_PATH + "/" + parts[1];
+                                    if (oldPath.contains("/data/data/com.termux"))
+                                        throw new RuntimeException("Bootstrap symlink still targets the upstream app: " + oldPath);
+                                    String newPath = BootstrapTransaction.archivePath(TERMUX_STAGING_PREFIX_DIR, parts[1]).getPath();
                                     symlinks.add(Pair.create(oldPath, newPath));
 
                                     error = ensureDirectoryExists(new File(newPath).getParentFile());
@@ -187,7 +186,7 @@ final class TermuxInstaller {
                                 }
                             } else {
                                 String zipEntryName = zipEntry.getName();
-                                File targetFile = new File(TERMUX_STAGING_PREFIX_DIR_PATH, zipEntryName);
+                                File targetFile = BootstrapTransaction.archivePath(TERMUX_STAGING_PREFIX_DIR, zipEntryName);
                                 boolean isDirectory = zipEntry.isDirectory();
 
                                 error = ensureDirectoryExists(isDirectory ? targetFile : targetFile.getParentFile());
@@ -218,11 +217,14 @@ final class TermuxInstaller {
                         Os.symlink(symlink.first, symlink.second);
                     }
 
+                    if (!BootstrapTransaction.isHealthy(TERMUX_STAGING_PREFIX_DIR, pacman)) {
+                        throw new RuntimeException("Bootstrap is incomplete or contains executables built for another app");
+                    }
+                    BootstrapTransaction.markHealthy(TERMUX_STAGING_PREFIX_DIR);
+
                     Logger.logInfo(LOG_TAG, "Moving termux prefix staging to prefix directory.");
 
-                    if (!TERMUX_STAGING_PREFIX_DIR.renameTo(TERMUX_PREFIX_DIR)) {
-                        throw new RuntimeException("Moving termux prefix staging to prefix directory failed");
-                    }
+                    BootstrapTransaction.commit(TERMUX_STAGING_PREFIX_DIR, TERMUX_PREFIX_DIR, previousPrefix);
 
                     Logger.logInfo(LOG_TAG, "Bootstrap packages installed successfully.");
 
@@ -266,7 +268,6 @@ final class TermuxInstaller {
                     })
                     .setPositiveButton(R.string.bootstrap_error_try_again, (dialog, which) -> {
                         dialog.dismiss();
-                        FileUtils.deleteFile("termux prefix directory", TERMUX_PREFIX_DIR_PATH, true);
                         TermuxInstaller.setupBootstrapIfNeeded(activity, whenDone);
                     }).show();
             } catch (WindowManager.BadTokenException e1) {
