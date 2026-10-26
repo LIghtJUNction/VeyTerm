@@ -259,14 +259,14 @@ task downloadBootstraps() {
             downloadBootstrap("i686", "46dcfeb5eef67ba765498db9fe4c50dc4690805139aa0dd141a9d8ee0693cd27", version)
             downloadBootstrap("x86_64", "615b590679ee6cd885b7fd2ff9473c845e920f9b422f790bb158c63fe42b8481", version)
         } else if (packageVariant == "pacman-android-7") {
-            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "veyterm-native-20261026"
+            def version = System.getenv("VEYTERM_BOOTSTRAP_VERSION") ?: "veyterm-native-20261026-ui2"
             // All four archives contain packages built for the private app
             // prefix. Only the public repository key is shipped; each device
             // creates its own local pacman trust state on first startup.
-            downloadBootstrap("aarch64", "93a6ef78596686e11d16afe40d5c5b49e221ab5601c4999eaf9c998820f8b2ef", version)
-            downloadBootstrap("arm", "6aa1fe461a6b69923779346550367abc03c2da0a29972e420fb3e1ba3b34f5a2", version)
-            downloadBootstrap("i686", "2912e1f96d2c6121a64a7c2d3c68b9e8bde08ab6b9a2d33d5ddaea974880e83f", version)
-            downloadBootstrap("x86_64", "1cc4129142fae867525514ce2d9d6f3ead9d8bd274be83f60c1457abb3cbfd3c", version)
+            downloadBootstrap("aarch64", "65a18d149b19d1a2b6baddbaa0fb55b44857ac15a250b382aac53b4cd57c260b", version)
+            downloadBootstrap("arm", "1da76eb46f91c396d59c2249c44d8ae768a8b36b2ca8487441743b20f03e5faf", version)
+            downloadBootstrap("i686", "00373c33068a70f23d5d86a392af061a5c475c76bd060bc432072ee27bb9be33", version)
+            downloadBootstrap("x86_64", "80b340781ddaeeddf4ddd84376213a882609ebac782fb42418432d7aeca844bd", version)
         } else {
             throw new GradleException("Unsupported TERMUX_PACKAGE_VARIANT \"" + packageVariant + "\"")
         }

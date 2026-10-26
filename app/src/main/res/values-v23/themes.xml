@@ -5,9 +5,9 @@
         <item name="colorPrimaryVariant">@color/vey_surface_elevated</item>
         <item name="colorAccent">@color/vey_accent</item>
         <item name="android:windowBackground">@color/vey_surface_terminal</item>
-        <item name="android:statusBarColor">@color/vey_surface_panel</item>
+        <item name="android:statusBarColor">@color/vey_surface_terminal</item>
         <item name="android:navigationBarColor">@color/vey_surface_terminal</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>

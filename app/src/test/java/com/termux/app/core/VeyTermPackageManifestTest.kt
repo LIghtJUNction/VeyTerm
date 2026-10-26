@@ -15,10 +15,14 @@ class VeyTermPackageManifestTest {
         assertEquals(VeyTermPackageManager.PACMAN, manifest.manager)
         assertTrue("paru" in manifest.requiredPackages)
         assertTrue("sudo" in manifest.requiredPackages)
-        assertTrue("base-devel" in manifest.requiredPackages)
+        assertTrue("make" in manifest.requiredPackages)
+        assertTrue("python-pip" in manifest.requiredPackages)
+        assertTrue("termux-keyring" in manifest.requiredPackages)
+        assertFalse("archlinux-keyring" in manifest.requiredPackages)
+        assertEquals("pkg.tar.xz", manifest.manager.packageFormat)
         assertTrue(manifest.supportsUnprivilegedBuilds)
         assertFalse(manifest.aurEnabledByDefault)
-        assertFalse(manifest.sourceReady)
+        assertTrue(manifest.sourceReady)
         assertEquals(TermuxBootstrap.PackageManager.PACMAN,
             TermuxBootstrap.PackageManager.managerOf("pacman"))
         assertEquals(TermuxBootstrap.PackageVariant.PACMAN_ANDROID_7,

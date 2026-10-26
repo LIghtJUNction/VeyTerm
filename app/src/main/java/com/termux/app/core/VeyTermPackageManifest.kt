@@ -1,11 +1,11 @@
 package com.termux.app.core
 
-/** Package manager identity used by the planned Arch-based bootstrap. */
+/** Package manager identity of the native Android bootstrap. */
 enum class VeyTermPackageManager(
     val command: String,
     val packageFormat: String,
 ) {
-    PACMAN("pacman", "pkg.tar.zst"),
+    PACMAN("pacman", "pkg.tar.xz"),
     APT("apt", "deb"),
 }
 
@@ -27,15 +27,9 @@ data class VeyTermBootstrapManifest(
 }
 
 object VeyTermPackageManifests {
-    /** Product target. The APK baseline remains explicit below until sourceReady. */
     val default: VeyTermBootstrapManifest
         get() = pacmanAndroid7
 
-    /**
-     * The target PACMAN bootstrap contract. It is deliberately marked
-     * sourceReady=false until a separately reproducible Arch/Termux packages
-     * source publishes signed Android archives and checksums.
-     */
     val pacmanAndroid7: VeyTermBootstrapManifest = VeyTermBootstrapManifest(
         variant = "pacman-android-7",
         manager = VeyTermPackageManager.PACMAN,
@@ -44,16 +38,23 @@ object VeyTermPackageManifests {
             "pacman",
             "paru",
             "sudo",
-            "base-devel",
+            "make",
+            "binutils",
+            "autoconf",
+            "automake",
+            "bison",
+            "flex",
             "git",
             "ca-certificates",
-            "archlinux-keyring",
+            "termux-keyring",
             "openssl",
             "curl",
             "zstd",
             "fakeroot",
             "proot",
             "proot-distro",
+            "python",
+            "python-pip",
         ),
         requiredFiles = listOf(
             "etc/pacman.conf",
@@ -65,10 +66,13 @@ object VeyTermPackageManifests {
             "bin/sudo",
             "bin/proot",
             "bin/proot-distro",
+            "bin/python3",
+            "bin/pip",
+            "share/pacman/keyrings/veyterm.gpg",
         ),
         supportsUnprivilegedBuilds = true,
         aurEnabledByDefault = false,
-        sourceReady = false,
+        sourceReady = true,
     )
 
     /** The currently shipped apt APK remains a compatibility baseline only. */

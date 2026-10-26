@@ -19,7 +19,11 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--agent", choices=AGENTS, action="append")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--seconds", type=float, default=30,
+                        help="Startup window per Agent, including cold filesystem reads")
     args = parser.parse_args()
+    if not 5 <= args.seconds <= 120:
+        parser.error("Use a startup window between 5 and 120 seconds")
     agents = args.agent or list(AGENTS)
     output = args.output or Path("build/verification") / datetime.now(timezone.utc).strftime("agents-%Y%m%dT%H%M%SZ")
     output.mkdir(parents=True, exist_ok=True)
@@ -42,12 +46,13 @@ def main():
           "cat > files/home/veyterm-agent-tui-probe.py",
           data=Path(__file__).with_name("agent_tui_probe.py").read_bytes())
     command = ["python3", "/data/data/com.veyterm/files/home/veyterm-agent-tui-probe.py"]
+    command += ["--seconds", str(args.seconds)]
     for agent in agents:
         command += ["--agent", agent]
     driver = subprocess.Popen([
         sys.executable, str(Path(__file__).with_name("emulator_command.py")),
         "--serial", args.serial, "--name", "agents-tui", "--command", shlex.join(command),
-        "--timeout", str(len(agents) * 25 + 45), "--output", str(output),
+        "--timeout", str(int(len(agents) * (args.seconds + 10) + 45)), "--output", str(output),
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     captured = set()
     while driver.poll() is None:

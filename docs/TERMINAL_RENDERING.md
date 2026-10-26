@@ -19,7 +19,7 @@ graphics and a 720 × 1280 display. `flicker_fixture.py` renders 60 alternating
 colored frames, deliberately pausing for 40 ms after clearing and another
 25 ms after writing half the screen. Screenrecord captures showed 121
 incomplete samples out of 245 before the change and 0 out of 240 with the
-published APK.
+`veyterm-native-20261026` APK.
 Both colors remained visible, so a permanently frozen screen cannot pass.
 These are 30 Hz video samples, not application frame-rate measurements.
 

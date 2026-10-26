@@ -7,7 +7,7 @@ libraries from that upstream project so they can be extended with native AI
 workflows.
 
 The current tested APKs are available in the
-[native bootstrap release](https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026).
+[native bootstrap release](https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026-ui2).
 
 ## Current fork boundary
 
@@ -26,6 +26,9 @@ Run `veyterm-agents install` to install Claude Code, Codex, Pi, Antigravity CLI,
 Cursor CLI and Grok Build in an optional Linux environment. Start one in your
 project with, for example, `veyterm-agents codex`. Setup and the tested versions
 are documented in [`docs/AGENT_COMPATIBILITY.md`](docs/AGENT_COMPATIBILITY.md).
+Installation and execution checks for Python packages, Node build tools,
+CMake/Ninja and other utilities are in
+[`docs/SOFTWARE_COMPATIBILITY.md`](docs/SOFTWARE_COMPATIBILITY.md).
 
 ## Build locally
 

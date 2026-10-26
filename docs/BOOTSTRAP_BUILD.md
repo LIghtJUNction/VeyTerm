@@ -40,6 +40,11 @@ converts package metadata and maintainer-script arguments, preserving payload
 bytes, file permissions, and symlinks. It rejects missing runtime dependencies
 and any old prefix in the payload.
 
+Compile-time package-format comparisons in Debian maintainer hooks are also
+converted to pacman. Affected packages receive a higher release number. This
+prevents Python's cleanup hook from deleting pip that pacman owns; replacing
+only the maintainer-script arguments is insufficient.
+
 ## Assemble and sign
 
 On a Linux host with Python 3.11+, `ar`, `vercmp`, `repo-add`, and GnuPG, use a
@@ -98,9 +103,17 @@ then rejects a valid package archive with modified contents and its original
 signature. It also builds, installs and removes an unsigned local fixture as
 the ordinary app UID.
 
-The corrected four-ABI data release is `veyterm-native-20261026`. The optional
+The current four-ABI data release is `veyterm-native-20261026-ui2`. The optional
 official coding-agent environment is described in
 [`AGENT_COMPATIBILITY.md`](AGENT_COMPATIBILITY.md).
+
+The current release reuses 448 unchanged signed package payloads from
+`veyterm-native-20261026`. When assembling it, pass that release's download URL
+as `--fallback-repository-url`, with the new release as `--repository-url`.
+The new release contains all repository databases, corrected Python packages,
+bootstraps and APKs. Compare every reused payload hash with the published
+baseline before omitting it from the upload list. Both mirrors retain mandatory
+package and database signature verification.
 
 After publishing the release, verify its default HTTPS repository from the
 installed app, without a test mirror or credentials:

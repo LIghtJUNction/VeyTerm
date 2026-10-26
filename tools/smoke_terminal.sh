@@ -16,7 +16,7 @@ parent_command="$(tr '\0' ' ' < "/proc/$PPID/cmdline")"
 echo "PARENT_SHELL=$parent_command"
 [[ "$parent_command" == *zsh* ]]
 
-for program in zsh bash pacman paru git curl python3 proot proot-distro \
+for program in zsh bash pacman paru git curl python3 pip proot proot-distro \
                sudo make makepkg autoconf automake bison flex file pkg-config; do
     command -v "$program"
 done
@@ -24,6 +24,8 @@ pacman --version
 paru --version
 git --version
 python3 -c 'import ssl; print("PYTHON_TLS=" + ssl.OPENSSL_VERSION)'
+python3 -m pip --version
+pip --version
 proot --version
 proot-distro --help
 
@@ -79,6 +81,9 @@ pacman -R --noconfirm nano
 paru -S --noconfirm nano
 pacman -Q nano
 pacman -S --noconfirm libc++ ca-certificates
+pacman -S --noconfirm python
+python3 -m pip --version
+echo PYTHON_REINSTALL_PRESERVES_PIP_OK
 
 mkdir "$work_directory/download"
 pacman -Sw --noconfirm --cachedir "$work_directory/download" nano

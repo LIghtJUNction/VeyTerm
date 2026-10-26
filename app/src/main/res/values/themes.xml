@@ -23,7 +23,7 @@
         <item name="colorAccent">@color/vey_accent</item>
 
         <item name="android:windowBackground">@color/vey_surface_terminal</item>
-        <item name="android:statusBarColor">@color/vey_surface_panel</item>
+        <item name="android:statusBarColor">@color/vey_surface_terminal</item>
         <item name="android:navigationBarColor">@color/vey_surface_terminal</item>
         <!-- Avoid action mode toolbar pushing down terminal content when
              selecting text on pre-6.0 (non-floating toolbar). -->

@@ -1,28 +1,26 @@
-# VeyTerm PACMAN_ANDROID_7 bootstrap contract (design manifest)
-# This file is not an installable archive. The variant is experimental until a
-# reproducible Arch/Termux packages source publishes all four independently
-# signed ABIs.
+# Signed native Android bootstrap; glibc development tools run in PRoot.
 variant=pacman-android-7
 runtime=termux-android
 manager=pacman
-package_format=pkg.tar.zst
+package_format=pkg.tar.xz
 prefix=/data/data/com.veyterm/files/usr
 libc=bionic
 arch_repository=proot-only
-glibc_runtime=proot-arch-glibc
-termux_repository=allowed-in-native-userland
+glibc_runtime=proot-debian-glibc
 signature_policy=required
-keyring=archlinux-keyring
+keyring=veyterm
 repository_sync=required-after-first-launch
+repository_url=https://github.com/LIghtJUNction/VeyTerm/releases/download/veyterm-native-20261026-ui2
+fallback_repository_url=https://github.com/LIghtJUNction/VeyTerm/releases/download/veyterm-native-20261026
 aur_default=disabled
 aur_build_user=ordinary-user
-required_packages=pacman,paru,sudo,base-devel,git,ca-certificates,archlinux-keyring,openssl,curl,zstd,fakeroot,proot,proot-distro
-required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo,bin/proot,bin/proot-distro
-required_build_tools=base-devel,git,ca-certificates,openssl,zstd,fakeroot
+required_packages=pacman,paru,sudo,make,binutils,autoconf,automake,bison,flex,git,ca-certificates,termux-keyring,openssl,curl,zstd,fakeroot,proot,proot-distro,python,python-pip
+required_runtime_files=etc/pacman.conf,etc/makepkg.conf,etc/pacman.d/gnupg,var/lib/pacman/sync,bin/pacman,bin/paru,bin/sudo,bin/proot,bin/proot-distro,bin/python3,bin/pip,share/pacman/keyrings/veyterm.gpg
+required_build_tools=make,binutils,autoconf,automake,bison,flex,git,ca-certificates,openssl,zstd,fakeroot
 rollback=stage-prefix-then-atomic-rename
-source_status=experimental-release-v0.118.0-veyterm-pacman
-signature_provenance=sha256-verified-test-release;independent-signing-pending
-bootstrap_sha256_aarch64=3d18bb2cddd1fabb7e75b2ef92470134009bf0de28ac25966863f8ebf6c2b959
-bootstrap_sha256_arm=0a13f9bfcf01894f22f6c8a4d75cbbf11f23622baa6298bfc7007fe966a57ab6
-bootstrap_sha256_i686=73c908d0fcc2018b3a72d37c437ac040d7c3c09153169d18a0dd9554efd9c83f
-bootstrap_sha256_x86_64=80b84b339face2ef8822059e46558139f283ee0ae5db4b07d2d36aae40c080c6
+source_status=signed-native-release-veyterm-native-20261026-ui2
+signature_provenance=public-key-EDD66C5F3D1227BAECF69D834AB314C725D22B75
+bootstrap_sha256_aarch64=65a18d149b19d1a2b6baddbaa0fb55b44857ac15a250b382aac53b4cd57c260b
+bootstrap_sha256_arm=1da76eb46f91c396d59c2249c44d8ae768a8b36b2ca8487441743b20f03e5faf
+bootstrap_sha256_i686=00373c33068a70f23d5d86a392af061a5c475c76bd060bc432072ee27bb9be33
+bootstrap_sha256_x86_64=80b340781ddaeeddf4ddd84376213a882609ebac782fb42418432d7aeca844bd

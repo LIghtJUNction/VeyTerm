@@ -23,9 +23,13 @@ def main():
     freshness = parser.add_mutually_exclusive_group()
     freshness.add_argument("--reset", action="store_true", help="Clear this emulator's VeyTerm app data for a fresh-install test")
     freshness.add_argument("--replace-prefix", action="store_true", help="Retain the existing prefix as a fixture and extract a fresh one; keep home files")
+    parser.add_argument("--fixture-name", default="veyterm-prefix",
+                        help="Unique name for retained prefix fixtures")
     parser.add_argument("--repository-url", help="Use a temporary test mirror without changing the installed pacman.conf")
     parser.add_argument("--output", type=Path, default=Path("build/verification") / datetime.now(timezone.utc).strftime("emulator-%Y%m%dT%H%M%SZ"))
     args = parser.parse_args()
+    if not re.fullmatch(r"veyterm-[a-z0-9-]+", args.fixture_name):
+        parser.error("Use a veyterm- prefixed lowercase fixture name")
     args.output.mkdir(parents=True, exist_ok=True)
 
     def adb(*arguments, check=True, data=None, timeout=60):
@@ -82,10 +86,13 @@ def main():
         shell("pm", "clear", PACKAGE)
     elif args.replace_prefix:
         shell("am", "force-stop", PACKAGE)
-        for source, target in (("usr", "veyterm-prefix-fixture"),
-                               ("usr.previous", "veyterm-prefix-previous-fixture")):
-            if shell("run-as", PACKAGE, "/system/bin/sh", "-c", f"test -e files/{target}", check=False).returncode == 0:
+        moves = (("usr", args.fixture_name + "-fixture"),
+                 ("usr.previous", args.fixture_name + "-previous-fixture"))
+        # Validate every destination before moving anything, including dangling links.
+        for _, target in moves:
+            if shell("run-as", PACKAGE, "/system/bin/sh", "-c", f"test -e files/{target} || test -L files/{target}", check=False).returncode == 0:
                 raise RuntimeError("A retained prefix fixture already exists: " + target)
+        for source, target in moves:
             if shell("run-as", PACKAGE, "/system/bin/sh", "-c", f"test -e files/{source}", check=False).returncode == 0:
                 shell("run-as", PACKAGE, "mv", "files/" + source, "files/" + target)
     launch()
@@ -128,7 +135,7 @@ def main():
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "fresh_app_data": args.reset, "terminal_smoke": "passed",
         "fresh_prefix": args.reset or args.replace_prefix,
-        "retained_prefix": "files/veyterm-prefix-fixture" if args.replace_prefix else None,
+        "retained_prefix": "files/" + args.fixture_name + "-fixture" if args.replace_prefix else None,
         "test_repository": args.repository_url,
         "interactive_restart": "passed", "zshrc_preserved": True,
     }

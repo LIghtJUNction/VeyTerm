@@ -3,28 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VeyTerm terminal</title>
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<title>VeyTerm terminal preview</title>
 <style>
-:root{color-scheme:dark;--bg:#211f20;--panel:#2a2728;--rule:#8e8175;--ink:#d8d0c7;--muted:#aaa095;--dim:#766d66;--sage:#abb89b;--orange:#c78c5b;--red:#b9695d;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:12px/1.5 var(--mono)}body{display:flex;flex-direction:column;min-height:100vh}.topbar{height:32px;display:flex;align-items:center;gap:18px;padding:0 12px;border-bottom:1px solid var(--rule);background:var(--panel);white-space:nowrap}.title{color:var(--sage);letter-spacing:.05em}.tabs{display:flex;align-items:center;gap:0;height:100%}.tab{height:100%;display:flex;align-items:center;padding:0 12px;color:var(--dim);border-left:1px solid transparent;border-right:1px solid transparent}.tab.active{color:var(--ink);background:var(--bg);border-color:var(--rule)}.tab em{margin-right:7px;color:var(--sage);font-style:normal}.topmeta{display:flex;align-items:center;gap:16px;margin-left:auto;color:var(--dim);font-size:11px}.topmeta b{color:var(--sage);font-weight:400}.panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);flex:1;min-height:0}.pane{min-width:0;min-height:0;overflow:hidden;padding:18px 20px 14px;background:var(--bg)}.pane+ .pane{border-left:1px solid var(--rule)}.pane-head{height:20px;margin-bottom:10px;color:var(--dim);font-size:11px}.pane-head b{color:var(--sage);font-weight:400}.terminal{white-space:pre-wrap;font:12px/1.58 var(--mono)}.line{min-height:1.58em}.prompt{color:var(--sage)}.command{color:var(--ink)}.muted{color:var(--dim)}.out{color:var(--muted)}.ok{color:var(--sage)}.warn{color:var(--orange)}.err{color:var(--red)}.diff-add{color:var(--sage);background:#34392f}.diff-del{color:var(--red);background:#392b29}.fetch{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}.logo{margin:0;color:var(--sage);font:700 18px/1.04 var(--mono);white-space:pre}.fetch-info{min-width:0}.fetch-group{margin:0 0 16px;padding-bottom:8px;border-bottom:1px solid var(--rule)}.fetch-group:last-child{border-bottom:0}.fetch-group h2{margin:0 0 5px;color:var(--dim);font:11px var(--mono);font-weight:400;letter-spacing:.08em}.fetch-row{display:flex;gap:12px;min-height:1.55em}.fetch-row b{width:76px;color:var(--sage);font-weight:400}.fetch-row span{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.commandbar{height:38px;display:flex;align-items:center;gap:10px;padding:0 14px;border-top:1px solid var(--rule);background:var(--panel)}.commandbar .prompt{font-size:15px}.input{flex:1;min-width:0;padding:3px 0;border:0;border-bottom:1px solid var(--rule);outline:0;background:transparent;color:var(--ink);font:11px var(--mono)}.input::placeholder{color:var(--dim)}.status{display:flex;gap:14px;color:var(--dim);font-size:10px;white-space:nowrap}.status b{color:var(--sage);font-weight:400}.status .warn{color:var(--orange)}@media(max-width:900px){.fetch{grid-template-columns:1fr}.logo{font-size:12px}.pane{padding:14px}.terminal{font-size:11px}}@media(max-width:620px){.topbar{gap:8px;padding:0 8px}.title{display:none}.tab{padding:0 7px}.topmeta span{display:none}.panes{grid-template-columns:1fr;overflow:auto}.pane+ .pane{border-left:0;border-top:1px solid var(--rule)}.fetch{grid-template-columns:180px 1fr}.logo{font-size:9px}.commandbar{height:36px;padding:0 8px}.status{gap:7px}.status span:nth-child(2){display:none}}
+:root {
+  --bg: #211f20; --panel: #2a2728; --ink: #e8e1d8;
+  --muted: #b8aea3; --dim: #93877d; --sage: #abb89b;
+  --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); }
+body { min-height: 100vh; display: flex; flex-direction: column; font: 13px/1.7 var(--mono); }
+.topbar { min-height: 56px; display: flex; align-items: center; gap: 28px; padding: 0 24px; }
+.title { font: 500 15px system-ui, sans-serif; }
+.tabs { display: flex; gap: 24px; }
+.tab { color: var(--dim); }
+.tab.active { color: var(--ink); }
+.tab em { margin-right: 8px; color: var(--sage); font-style: normal; }
+.topmeta { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.topmeta::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 9px; border-radius: 50%; background: var(--sage); }
+.panes { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; padding: 24px 28px 40px; }
+.pane { min-width: 0; }
+.pane-head { margin-bottom: 28px; color: var(--dim); font-size: 11px; }
+.pane-head b { color: var(--muted); font-weight: 400; }
+.terminal { white-space: pre-wrap; overflow-wrap: anywhere; }
+.line { min-height: 1.7em; }
+.prompt, .ok { color: var(--sage); }
+.out { color: var(--muted); }
+.muted { color: var(--dim); }
+.block { margin-bottom: 28px; }
+.fetch { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 24px; margin: 24px 0 32px; }
+.logo { margin: 0; color: var(--sage); font: 600 20px/1.1 var(--mono); }
+.fetch-group { margin-bottom: 24px; }
+.fetch-group h2 { margin: 0 0 8px; color: var(--dim); font: 12px system-ui, sans-serif; }
+.fetch-row { display: flex; gap: 12px; }
+.fetch-row b { min-width: 72px; font-weight: 400; color: var(--sage); }
+.fetch-row span { color: var(--muted); }
+.commandbar { min-height: 52px; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: var(--panel); }
+.input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 12px 0; background: transparent; color: var(--ink); font: 12px var(--mono); }
+.input:focus-visible { outline: 1px solid var(--sage); outline-offset: 4px; }
+.input::placeholder { color: var(--muted); }
+.status { color: var(--muted); font-size: 11px; white-space: nowrap; }
+@media (max-width: 900px) { .panes { gap: 32px; padding: 20px; } .fetch { grid-template-columns: 1fr; } .logo { display: none; } }
+@media (max-width: 620px) {
+  .topbar { min-height: 48px; gap: 20px; padding: 0 16px; }
+  .tabs { gap: 16px; font-size: 12px; }
+  .tab:last-child, .topmeta { display: none; }
+  .panes { grid-template-columns: 1fr; gap: 32px; padding: 24px 16px; }
+  .pane-head { margin-bottom: 20px; }
+  .fetch { grid-template-columns: 104px minmax(0, 1fr); gap: 20px; }
+  .logo { display: block; font-size: 16px; }
+  .commandbar { padding: 0 16px; }
+}
 </style>
 </head>
 <body>
-<header class="topbar"><span class="title">VeyTerm</span><nav class="tabs" aria-label="terminal sessions"><span class="tab active"><em>1</em>local</span><span class="tab"><em>2</em>build</span><span class="tab"><em>3</em>logs</span></nav><div class="topmeta"><span>zsh</span><span>pacman</span><b>LOCAL</b><span>09:41</span></div></header>
-<main class="panes" aria-label="two terminal panes">
-<section class="pane" aria-label="command transcript"><div class="pane-head"><b>~/Documents/GITHUB/VeyTerm</b> · git transcript</div><div class="terminal">
-<div class="line"><span class="prompt">$</span> <span class="command">git status --short</span></div><div class="line out"> M app/src/main/res/layout/activity_termux.xml</div><div class="line out"> M app/src/main/res/values/colors.xml</div><div class="line out">?? docs/preview/veyterm-preview.html</div><div class="line"><span class="prompt">$</span> <span class="command">git diff -- app/src/main/assets/bootstrap/pacman-android-7.manifest</span></div><div class="line muted">diff --git a/.../pacman-android-7.manifest b/.../pacman-android-7.manifest</div><div class="line diff-del">-source_status=blocked-until-arch-bootstrap-published</div><div class="line diff-add">+source_status=experimental-release-v0.118.0-veyterm-pacman</div><div class="line diff-add">+signature_provenance=sha256-verified-test-release;independent-signing-pending</div><div class="line"><span class="prompt">$</span> <span class="command">git log -1 --oneline</span></div><div class="line out">34e20c9a feat: simplify warm session chrome</div><br>
-<div class="line"><span class="prompt">$</span> <span class="command">mcp tools</span></div><div class="line out">filesystem.read   git.status   browser.open <span class="ok">[read-only]</span></div><div class="line"><span class="prompt">$</span> <span class="command">skill run repo-review</span></div><div class="line out">skill: repo-review · permission: read-only · worker: ready</div><div class="line"><span class="prompt">$</span> <span class="command">ls -la /etc /usr/bin</span></div><div class="line out">drwxr-xr-x root root  /etc</div><div class="line out">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div><br>
-<div class="line"><span class="prompt">$</span> <span class="command">./gradlew :app:assembleDebug</span></div><div class="line out">BUILD SUCCESSFUL · 120 actionable tasks · 18s</div><div class="line ok">apk: com.veyterm · arm64-v8a / armeabi-v7a / x86 / x86_64</div><br><div class="line"><span class="prompt">$</span> <span class="command">_</span></div>
-</div></section>
-<section class="pane" aria-label="fastfetch and Linux file view"><div class="pane-head"><b>~/workspace</b> · linux user view</div><div class="terminal"><div class="line"><span class="prompt">$</span> <span class="command">fastfetch</span></div><br><div class="fetch"><pre class="logo">   __   __
+<header class="topbar">
+  <span class="title">VeyTerm</span>
+  <nav class="tabs" aria-label="Terminal sessions">
+    <span class="tab active"><em>1</em>local</span>
+    <span class="tab"><em>2</em>build</span>
+    <span class="tab"><em>3</em>logs</span>
+  </nav>
+  <span class="topmeta">Local shell</span>
+</header>
+<main class="panes">
+<section class="pane" aria-label="Local terminal">
+  <div class="pane-head"><b>~/projects/hello</b> · local</div>
+  <div class="terminal"><div class="block"><div class="line"><span class="prompt">❯</span> git status --short</div><div class="line out"> M src/main.ts</div><div class="line out">?? notes.md</div></div><div class="block"><div class="line"><span class="prompt">❯</span> pacman -Si nano</div><div class="line out">Repository      : veyterm-x86_64</div><div class="line out">Name            : nano</div><div class="line out">Description     : Small, free and friendly text editor</div></div><div class="block"><div class="line"><span class="prompt">❯</span> veyterm-agents node --version</div><div class="line out">v24.22.1</div></div><div class="line"><span class="prompt">❯</span> <span class="muted">▏</span></div></div>
+</section>
+<section class="pane" aria-label="Project terminal">
+  <div class="pane-head"><b>~/projects/hello</b> · build</div>
+  <div class="fetch"><pre class="logo">   __   __
   / /  / /
  / /__/ /
 /____  /
     / /
-   /_/</pre><div class="fetch-info"><section class="fetch-group"><h2>System</h2><div class="fetch-row"><b>OS</b><span>Android / Linux userland</span></div><div class="fetch-row"><b>Host</b><span>VeyTerm native terminal</span></div><div class="fetch-row"><b>Kernel</b><span>Android kernel · aarch64</span></div><div class="fetch-row"><b>Uptime</b><span>1 day, 04 hours</span></div></section><section class="fetch-group"><h2>Software</h2><div class="fetch-row"><b>Shell</b><span>zsh 5.x</span></div><div class="fetch-row"><b>Packages</b><span>pacman · paru</span></div><div class="fetch-row"><b>Terminal</b><span>VeyTerm / libtermux</span></div><div class="fetch-row"><b>Font</b><span>JetBrains Mono</span></div></section></div></div><br>
-<div class="line"><span class="prompt">$</span> <span class="command">ls -la /etc /usr/bin</span></div><div class="line out">drwxr-xr-x root root  /etc</div><div class="line out">drwxr-xr-x root root  /usr/bin</div><div class="line out">lrwxrwxrwx root root  /usr/bin/zsh → /usr/bin/zsh</div><div class="line out">-rwxr-xr-x root root  /usr/bin/pacman</div><div class="line out">-rwxr-xr-x root root  /usr/bin/paru</div><br><div class="line"><span class="prompt">$</span> <span class="command">_</span></div></div></section>
+   /_/</pre><div><section class="fetch-group"><h2>Environment</h2><div class="fetch-row"><b>Shell</b><span>zsh</span></div><div class="fetch-row"><b>Native</b><span>Android · pacman</span></div><div class="fetch-row"><b>Linux</b><span>Debian · PRoot</span></div></section><section class="fetch-group"><h2>Workspace</h2><div class="fetch-row"><b>Project</b><span>hello</span></div><div class="fetch-row"><b>Branch</b><span>main</span></div></section></div></div>
+  <div class="terminal"><div class="line"><span class="prompt">❯</span> veyterm-agents bash</div><div class="line out">root@localhost:/workspace# ls</div><div class="line out">notes.md  package.json  src</div><br><div class="line out">root@localhost:/workspace# <span class="muted">▏</span></div></div>
+</section>
 </main>
-<footer class="commandbar"><span class="prompt">$</span><input class="input" aria-label="command input" placeholder="command or ask VeyTerm AI"><div class="status"><span>MCP <b>off</b></span><span>skills <b>2</b></span><span>files <b>~</b></span><span class="warn">sudo <b>probe unavailable</b></span></div></footer>
+<footer class="commandbar"><span class="prompt">❯</span><input class="input" aria-label="Command preview" placeholder="Type a command…"><span class="status">zsh</span></footer>
 </body>
 </html>

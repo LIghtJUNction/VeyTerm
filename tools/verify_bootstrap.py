@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import posixpath
 from pathlib import Path, PurePosixPath
 import struct
 import re
@@ -12,7 +13,7 @@ import zipfile
 
 REQUIRED = (
     "bin/bash", "bin/zsh", "bin/pacman", "bin/paru", "bin/git",
-    "bin/proot", "bin/proot-distro", "bin/makepkg", "bin/bsdtar", "etc/pacman.conf", "etc/makepkg.conf", "etc/paru.conf",
+    "bin/proot", "bin/proot-distro", "bin/makepkg", "bin/bsdtar", "bin/python3", "bin/pip", "etc/pacman.conf", "etc/makepkg.conf", "etc/paru.conf",
     "share/pacman/keyrings/veyterm.gpg", "share/pacman/keyrings/veyterm-trusted",
     "SYMLINKS.txt",
 )
@@ -22,6 +23,21 @@ OLD_PREFIX = b"/data/data/com.termux"
 def safe_relative(name):
     path = PurePosixPath(name)
     return not path.is_absolute() and ".." not in path.parts
+
+
+def resolves_to_member(name, names, links):
+    visited = set()
+    prefix = "/data/data/com.veyterm/files/usr/"
+    while name in links and name not in visited:
+        visited.add(name)
+        target = links[name]
+        if target.startswith(prefix):
+            name = target.removeprefix(prefix)
+        elif target.startswith("/"):
+            return False
+        else:
+            name = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
+    return name in names
 
 
 def runtime_environment_errors(name, data):
@@ -44,10 +60,16 @@ def verify(path):
     expected_elf = {"aarch64": (2, 183), "arm": (1, 40), "i686": (1, 3), "x86_64": (2, 62)}.get(architecture)
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
+        links = {}
+        if "SYMLINKS.txt" in names:
+            for line in archive.read("SYMLINKS.txt").decode().splitlines():
+                parts = line.split("←")
+                if len(parts) == 2:
+                    links[parts[1].removeprefix("./")] = parts[0]
         if len(names) != len(set(names)):
             errors.append("duplicate archive entries")
         for name in REQUIRED:
-            if name not in names:
+            if not resolves_to_member(name, names, links):
                 errors.append(f"missing {name}")
         for entry in archive.infolist():
             if not safe_relative(entry.filename):

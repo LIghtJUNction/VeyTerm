@@ -55,10 +55,10 @@
     <string name="action_toggle_soft_keyboard">Keyboard</string>
 
     <string name="action_open_sessions">Open sessions</string>
-    <string name="terminal_header_local_shell">LOCAL SHELL</string>
-    <string name="terminal_workspace_sections">SESSIONS</string>
-    <string name="terminal_header_running">RUNNING</string>
-    <string name="terminal_header_exited">EXITED</string>
+    <string name="terminal_header_local_shell">Local shell</string>
+    <string name="terminal_workspace_sections">Sessions</string>
+    <string name="terminal_header_running">Running</string>
+    <string name="terminal_header_exited">Exited</string>
     <string name="terminal_session_detail_running">Active shell</string>
     <string name="terminal_session_detail_exited">Exited with status %1$d</string>
     <string name="terminal_toolbar_text_input_hint">Type a command…</string>

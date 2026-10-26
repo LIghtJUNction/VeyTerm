@@ -45,13 +45,41 @@ class PackageConversionTests(unittest.TestCase):
             subprocess.run(["bash", "-c", 'source "$1"; post_upgrade 2.0-0 1.3.20260721-0', "bash", str(root / "install")], env=env, check=True)
             self.assertEqual("configure\n1.3.20260721-0\n", (root / "calls").read_text())
 
+    def test_pacman_owned_pip_survives_python_configuration(self):
+        script = b'''#!/bin/bash
+if [[ -f "$PIP_BIN" && ! (("debian" = "debian" && -f "$DPKG_PIP_LIST") ||
+                         ("debian" = "pacman" && -d "$PACMAN_PIP_DB")) ]]; then
+    rm -f "$PIP_BIN"
+fi
+'''
+        for owned in (True, False):
+            with self.subTest(pacman_owned=owned), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                pip = root / "pip"
+                pip.write_text("package-owned pip\n")
+                database = root / "pacman-python-pip"
+                if owned:
+                    database.mkdir()
+                package = self.fixture(root, script)
+                output = root / "fixture.pkg.tar.xz"
+                write_package(package, output)
+                with tarfile.open(output) as archive:
+                    (root / "install").write_bytes(archive.extractfile(".INSTALL").read())
+                env = dict(os.environ, PIP_BIN=str(pip), PACMAN_PIP_DB=str(database),
+                           DPKG_PIP_LIST=str(root / "absent-dpkg-list"))
+                subprocess.run(["bash", "-c", 'source "$1"; post_install', "bash",
+                                str(root / "install")], env=env, check=True)
+                self.assertEqual(owned, pip.exists())
+                newer = subprocess.check_output(["vercmp", package.version, "1.3.20260721-0"], text=True)
+                self.assertGreater(int(newer), 0, "Existing installations must receive the corrected hook")
+
     @staticmethod
-    def fixture(root):
+    def fixture(root, postinst=b'#!/bin/sh\nprintf "%s\\n" "$@" > "$CALL_LOG"\n'):
         control = ("Package: fixture\nVersion: 1.3-20260721-0\nArchitecture: x86_64\n"
                    "Installed-Size: 1\nDescription: Package conversion fixture\n")
         with tarfile.open(root / "control.tar.xz", "w:xz") as archive:
             add_bytes(archive, "control", control.encode())
-            add_bytes(archive, "postinst", b'#!/bin/sh\nprintf "%s\\n" "$@" > "$CALL_LOG"\n')
+            add_bytes(archive, "postinst", postinst)
         data = b"#!/system/bin/sh\necho fixture\n"
         with tarfile.open(root / "data.tar.xz", "w:xz") as archive:
             member = tarfile.TarInfo("./data/data/com.veyterm/files/usr/bin/fixture")

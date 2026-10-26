@@ -25,6 +25,9 @@ For a development environment without the Agent downloads, run
 `/workspace` are written directly into the current Android project directory.
 Initial setup needs a network connection.
 
+For Python environments and other development tools, see the
+[software compatibility checks](SOFTWARE_COMPATIBILITY.md).
+
 ## Verified versions
 
 The following official releases were installed on the API 33 x86_64 emulator
@@ -52,6 +55,12 @@ this acceptance test. Screenshots, terminal traces and logs remain local under
 `build/verification/veyterm-agent-project-final.log`. Public repository and
 download acceptance is recorded in
 [`CONTINUE_20261026.md`](CONTINUE_20261026.md).
+
+The UI update was also exercised with all six Agents under
+`build/verification/agents-ui2-final`. Codex's cold startup did not produce a
+UI within the old 14-second probe window; a separate 45-second check passed
+under `build/verification/agents-ui2-codex-cold`. The probe now exposes
+`--seconds` and keeps its output and live-process requirements.
 
 Repeat the PTY checks on an idle debug emulator with:
 

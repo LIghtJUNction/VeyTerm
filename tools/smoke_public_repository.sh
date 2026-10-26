@@ -8,8 +8,10 @@ trap 'result=$?; rm -rf "$work_directory"; echo "PUBLIC_REPOSITORY_RESULT=$resul
 test "$(id -u)" != 0
 echo "APP_UID=$(id -u)"
 cat "$PREFIX/etc/pacman.conf"
-repository_url="$(sed -n 's/^Server = //p' "$PREFIX/etc/pacman.conf")"
-[[ "$repository_url" == https://github.com/LIghtJUNction/VeyTerm/releases/download/veyterm-native-* ]]
+mapfile -t repository_urls < <(sed -n 's/^Server = //p' "$PREFIX/etc/pacman.conf")
+for repository_url in "${repository_urls[@]}"; do
+    [[ "$repository_url" == https://github.com/LIghtJUNction/VeyTerm/releases/download/veyterm-native-* ]]
+done
 grep -qx 'SigLevel = Required DatabaseRequired' "$PREFIX/etc/pacman.conf"
 
 pacman -Syy --noconfirm
@@ -27,9 +29,17 @@ mapfile -t packages < <(find "$work_directory/cache" -name '*.pkg.tar.xz')
 printf 'COLD_CACHE_PACKAGE_COUNT=%s\n' "${#packages[@]}"
 test "${#packages[@]}" = 1
 # %l can point at a previously cached file; %f retains the repository filename.
-package_url="$repository_url/$(pacman -Sp --print-format '%f' nano)"
-printf 'PACKAGE_URL=%s\n' "$package_url"
-curl --fail --location --retry 2 "$package_url.sig" -o "${packages[0]}.sig"
+filename="$(pacman -Sp --print-format '%f' nano)"
+signature_downloaded=false
+for repository_url in "${repository_urls[@]}"; do
+    package_url="$repository_url/$filename"
+    if curl --fail --location --retry 2 "$package_url.sig" -o "${packages[0]}.sig"; then
+        printf 'PACKAGE_URL=%s\n' "$package_url"
+        signature_downloaded=true
+        break
+    fi
+done
+"$signature_downloaded"
 pacman -U --noconfirm "${packages[0]}"
 nano --version
 pacman -Qi nano | tee "$work_directory/installed"

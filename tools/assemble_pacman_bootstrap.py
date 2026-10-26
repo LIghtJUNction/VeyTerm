@@ -93,8 +93,20 @@ def read_package(path):
     if path.suffix == ".deb":
         with tarfile.open(fileobj=io.BytesIO(run("ar", "p", str(path), "control.tar.xz"))) as archive:
             control = {Path(m.name).name: archive.extractfile(m).read() for m in archive if m.isfile()}
+        manager_changed = False
+        for name in ("preinst", "postinst", "prerm", "postrm"):
+            if name not in control:
+                continue
+            # These compile-time guards refer to the installed package format.
+            # Leaving Debian selected makes Python delete pacman-owned pip.
+            converted = re.sub(rb'"debian"(\s*=\s*"(?:debian|pacman)")',
+                               rb'"pacman"\1', control[name])
+            manager_changed |= converted != control[name]
+            control[name] = converted
         meta = fields(control["control"].decode())
         version = pacman_version(meta["Version"])
+        if manager_changed:
+            version += ".1"
         info = {key: [value] for key, value in {
             "pkgname": meta["Package"], "pkgver": version,
             "pkgdesc": meta["Description"].splitlines()[0],
@@ -278,6 +290,8 @@ def main():
     parser.add_argument("--packages", default=DEFAULT_PACKAGES)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repository-url", required=True)
+    parser.add_argument("--fallback-repository-url", action="append", default=[],
+                        help="Additional signed-package mirrors, for reusing unchanged release assets")
     parser.add_argument("--signing-key", required=True)
     parser.add_argument("--packages-source", type=Path, required=True)
     args = parser.parse_args()
@@ -306,9 +320,11 @@ def main():
         for name in ("tmp", "var/lib/pacman/sync", "var/cache/pacman/pkg", "var/log"):
             (prefix / name).mkdir(parents=True, exist_ok=True)
         (prefix / "var/lib/pacman/local/ALPM_DB_VERSION").write_text("9\n")
+        servers = "".join(f"Server = {url.replace('{arch}', args.arch)}\n"
+                          for url in [args.repository_url, *args.fallback_repository_url])
         (prefix / "etc/pacman.conf").write_text(
             f"[options]\nArchitecture = {args.arch}\nColor\nSigLevel = Required DatabaseRequired\n"
-            f"LocalFileSigLevel = Optional\n\n[{repository_name}]\nServer = {args.repository_url.replace('{arch}', args.arch)}\n")
+            f"LocalFileSigLevel = Optional\n\n[{repository_name}]\n{servers}")
         keyring = prefix / "share/pacman/keyrings"
         keyring.mkdir(parents=True, exist_ok=True)
         (keyring / "veyterm.gpg").write_bytes(run("gpg", "--batch", "--export", args.signing_key))

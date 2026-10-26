@@ -11,6 +11,7 @@ import android.util.Pair;
 import android.view.WindowManager;
 
 import com.termux.R;
+import com.termux.app.core.BundledRepositoryConfig;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;
@@ -33,6 +34,7 @@ import java.nio.charset.Charset;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -388,6 +390,7 @@ final class TermuxInstaller {
     }
 
     private static void installDefaultShellConfigs(Activity activity) {
+        updateBundledRepository(activity);
         installDefaultShellConfig(activity, "shell/veyterm.zshrc", TERMUX_HOME_DIR_PATH + "/.zshrc");
         installDefaultShellConfig(activity, "shell/veyterm.bashrc", TERMUX_HOME_DIR_PATH + "/.bashrc");
         installDefaultExecutable(activity, "shell/veyterm-sudo", TERMUX_PREFIX_DIR_PATH + "/bin/sudo");
@@ -395,6 +398,39 @@ final class TermuxInstaller {
         installDefaultExecutable(activity, "shell/veyterm-agents", TERMUX_PREFIX_DIR_PATH + "/bin/veyterm-agents");
         installDefaultExecutable(activity, "shell/veyterm-agent-setup", TERMUX_PREFIX_DIR_PATH + "/libexec/veyterm-agent-setup");
         installDefaultExecutable(activity, "shell/veyterm-agent-install", TERMUX_PREFIX_DIR_PATH + "/libexec/veyterm-agent-install");
+    }
+
+    private static void updateBundledRepository(Activity activity) {
+        if (!"pacman-android-7".equals(com.termux.BuildConfig.TERMUX_PACKAGE_VARIANT)) return;
+        File config = new File(TERMUX_PREFIX_DIR, "etc/pacman.conf");
+        File temporary = null;
+        try (InputStream input = activity.getAssets().open("bootstrap/pacman-android-7.manifest")) {
+            if (!config.isFile() || android.system.OsConstants.S_ISLNK(Os.lstat(config.getPath()).st_mode)) return;
+            Properties manifest = new Properties();
+            manifest.load(input);
+            String current = manifest.getProperty("repository_url");
+            if (current == null) return;
+            StringBuilder original = new StringBuilder();
+            Error error = FileUtils.readTextFromFile("VeyTerm repository", config.getAbsolutePath(),
+                Charset.forName("UTF-8"), original, false);
+            if (error != null) {
+                Logger.logErrorExtended(LOG_TAG, error.toString());
+                return;
+            }
+            String updated = BundledRepositoryConfig.upgrade(original.toString(),
+                "https://github.com/LIghtJUNction/VeyTerm/releases/download/veyterm-native-20261026", current);
+            if (updated.equals(original.toString())) return;
+            temporary = File.createTempFile(".veyterm-repository-", ".tmp", config.getParentFile());
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                output.write(updated.getBytes(Charset.forName("UTF-8")));
+                output.getFD().sync();
+            }
+            if (!temporary.renameTo(config)) throw new java.io.IOException("Cannot update bundled repository");
+        } catch (Exception e) {
+            Logger.logErrorExtended(LOG_TAG, "Unable to update bundled repository: " + e);
+        } finally {
+            if (temporary != null) temporary.delete();
+        }
     }
 
     private static void installDefaultShellConfig(Activity activity, String assetPath, String targetPath) {
