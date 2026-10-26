@@ -102,6 +102,19 @@ The corrected four-ABI data release is `veyterm-native-20261026`. The optional
 official coding-agent environment is described in
 [`AGENT_COMPATIBILITY.md`](AGENT_COMPATIBILITY.md).
 
+After publishing the release, verify its default HTTPS repository from the
+installed app, without a test mirror or credentials:
+
+```sh
+python tools/emulator_command.py --serial emulator-5570 \
+  --name public-repository --script tools/smoke_public_repository.sh --timeout 300
+```
+
+This checks signed database synchronization, file ownership lookup, Paru,
+an empty-cache package download and installation with its public detached
+signature. It reinstalls nano and removes only its temporary download directory.
+The [acceptance checkpoint](CONTINUE_20261026.md) records the published artifacts.
+
 ## Rejected download-and-relocate build
 
 The older apt build changes are recorded in

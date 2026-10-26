@@ -48,7 +48,10 @@ frames and recovery separately.
 Account sign-in and authenticated model tasks were not tested. The official
 Linux binary releases used here target x86_64 or ARM64; only x86_64 was run in
 this acceptance test. Screenshots, terminal traces and logs remain local under
-`build/verification/agents-tui` and `build/verification/agents-pi-hotkeys`.
+`build/verification/agents-final`; the final shared-project/compiler check is
+`build/verification/veyterm-agent-project-final.log`. Public repository and
+download acceptance is recorded in
+[`CONTINUE_20261026.md`](CONTINUE_20261026.md).
 
 Repeat the PTY checks on an idle debug emulator with:
 
