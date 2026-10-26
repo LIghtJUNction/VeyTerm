@@ -37,6 +37,15 @@ pip files already deleted by an older installation, run once after updating:
 pacman -Syu python-pip
 ```
 
+The published `veyterm-native-20261026-ui2` release was also verified over the
+emulator's default public HTTPS repositories using empty download caches.
+Reinstalling signed Python `3.14.8-0.1` retained pip. Temporarily removing the
+package-owned `pip` and `pip3` launchers, then running the repair command above,
+restored both launchers and all 607 pip package files; `pip check` passed and
+`.zshrc` was unchanged. Unchanged pip/nano payloads download from the original
+signed release fallback, while corrected Python downloads from the new release.
+Repeat with `tools/smoke_public_python.sh` through `tools/emulator_command.py`.
+
 For project dependencies, use the package-managed pip with an isolated project:
 
 ```sh

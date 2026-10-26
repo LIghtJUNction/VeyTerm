@@ -1,9 +1,10 @@
 # Claude handoff
 
-Continue work in `/home/lightjunction/Documents/GITHUB/VeyTerm`.
-The user asked to improve the appearance and test software installation
-compatibility, then explicitly requested this handoff. No further publication
-was performed after that request.
+Work directory: `/home/lightjunction/Documents/GITHUB/VeyTerm`.
+The UI and software compatibility release is complete. The prerelease was
+published on 2026-10-26 at 11:05:02 UTC; all 40 assets and the public download,
+default HTTPS repository and Python/pip repair paths passed acceptance.
+The original handoff checkpoint is retained below as historical context.
 
 ## Instructions
 
@@ -56,7 +57,57 @@ Later commits may contain handoff documentation only.
 - The old 0/240 flicker video result belongs to the prior native release;
   it was not remeasured for this cosmetic update.
 
-## Pending release: the immediate next work
+## Completion record: public release acceptance
+
+Published prerelease:
+https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026-ui2
+
+- Release ID `424111981`: `draft=false`, `prerelease=true`. The published tag
+  points to runtime commit `8616dbc24f319da136bbaa2ed868600ba31266bb`.
+- Uploaded only the five missing files listed in the historical checkpoint.
+  All 40 remote assets have state `uploaded`, matching local sizes and SHA256
+  digests. No APK/bootstrap rebuild or signature regeneration was needed.
+- Anonymous downloads of the x86_64 APK, bootstrap, checksum, checksum signature
+  and public key match local bytes. The downloaded checksum signature validates
+  as `EDD66C5F3D1227BAECF69D834AB314C725D22B75`. Bootstrap validation reports
+  zero errors; the APK embeds the same bootstrap and passes APK v1/v2 signature
+  verification. Apksigner also emits warnings about JAR metadata entries outside
+  v1 signature coverage; v2 verification and the full-file checksum pass.
+- `tools/smoke_public_repository.sh` passed through the installed app's PTY on
+  `emulator-5570`, using default public HTTPS URLs and required package/database
+  signatures. Database/file-index refresh, package search, cold-cache nano
+  download and signed installation passed. Unchanged payloads use the prior
+  release fallback after an expected 404 on the new release.
+- Added `tools/smoke_public_python.sh` and ran it through the same PTY. Empty-cache
+  installation of signed Python `3.14.8-0.1` preserves pip. Temporarily moving the
+  package-owned `pip`/`pip3` launchers, then running `pacman -Syu python-pip`,
+  restores both. All 607 pip files are present, both entry points and `pip check`
+  pass, and `.zshrc` retains SHA256
+  `f8082a457e846d3e63b99a2857b26f3807916ae650ab9565e48c65baf9851bd6`.
+  The fixture restores missing launchers on failure and removes temporary caches.
+- Final checks preserve the Linux Agent container and all six executable paths.
+  Earlier Agent UI tests remain the evidence for execution; this final check
+  confirms availability only. ARM/32-bit execution and authenticated model calls
+  remain unverified. No routine CI was triggered or awaited.
+- Stopped the two task HTTP services after checking their PIDs, arguments and
+  working directories; removed `emulator-5570`'s 18765 reverse mapping and
+  confirmed no listeners/mappings remain. The final APK, Agents and AVD userdata
+  were retained; `emulator-5580` was not operated. The AVD data filesystem has
+  848 MiB free (86% used); the host has about 201 GiB free (78% used).
+
+Evidence under `build/verification/ui-polish/`: `final-server-release.json`,
+`public-downloads-result.json`, `public-downloads.log`, `public-apk-signature.log`.
+PTY logs under `build/verification/`: `veyterm-public-ui2.log`,
+`veyterm-public-python-ui2.log`, `veyterm-public-final-state.log`.
+
+Repeat the release-specific x86_64 Python acceptance on the preserved emulator:
+
+```sh
+python3 tools/emulator_command.py --serial emulator-5570 \
+  --name public-python-ui2 --script tools/smoke_public_python.sh --timeout 600
+```
+
+## Historical checkpoint: release pending at handoff
 
 Repository `LIghtJUNction/VeyTerm`.
 Tag `veyterm-native-20261026-ui2`, REST release ID **424111981**.
@@ -114,7 +165,7 @@ All 448 reused package payload hashes were compared with the prior release.
 Do not reupload them: the new repo uses the old signed release as a fallback.
 Both package and database signatures remain required.
 
-## Files and live state
+## Files and live state at original handoff
 
 - Exact 40-file whitelist: `build/verification/ui-polish/release-assets.json`.
 - Current server snapshot: `build/verification/ui-polish/handoff-server-assets.json`.
