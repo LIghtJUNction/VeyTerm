@@ -12,6 +12,7 @@ import android.view.WindowManager;
 
 import com.termux.R;
 import com.termux.app.core.BundledRepositoryConfig;
+import com.termux.app.core.BundledExecutable;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;
@@ -454,25 +455,77 @@ final class TermuxInstaller {
 
     private static void installDefaultExecutable(Activity activity, String assetPath, String targetPath) {
         File target = new File(targetPath);
-        if (target.exists()) return;
-
-        try (InputStream input = activity.getAssets().open(assetPath);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int read;
-            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
-            Error error = FileUtils.writeTextToFile("VeyTerm bundled helper", targetPath,
-                Charset.forName("UTF-8"), output.toString("UTF-8"), false);
-            if (error != null) {
-                Logger.logErrorExtended(LOG_TAG, error.toString());
-                return;
+        File stateDirectory = new File(TERMUX_PREFIX_DIR, "var/lib/veyterm/bundled-helpers");
+        File state = new File(stateDirectory, target.getName() + ".sha256");
+        try (InputStream input = activity.getAssets().open(assetPath)) {
+            byte[] bundled = readHelperBytes(input);
+            boolean exists;
+            try {
+                if (!android.system.OsConstants.S_ISREG(Os.lstat(targetPath).st_mode)) return;
+                exists = true;
+            } catch (android.system.ErrnoException e) {
+                if (e.errno != android.system.OsConstants.ENOENT) throw e;
+                exists = false;
             }
-            if (!target.setExecutable(true, false)) {
-                Logger.logErrorExtended(LOG_TAG, "Unable to mark bundled helper executable: " + targetPath);
+            if (exists) {
+                String recorded = null;
+                if (state.isFile() && !android.system.OsConstants.S_ISLNK(Os.lstat(state.getPath()).st_mode)) {
+                    try (InputStream saved = new java.io.FileInputStream(state)) {
+                        recorded = new String(readHelperBytes(saved), Charset.forName("UTF-8")).trim();
+                    }
+                }
+                try (InputStream installed = new java.io.FileInputStream(target)) {
+                    byte[] original = readHelperBytes(installed);
+                    if (!BundledExecutable.canReplace(original, bundled, recorded, legacyHelperDigest(assetPath))) return;
+                    if (!java.util.Arrays.equals(original, bundled)) writeHelperAtomically(target, bundled, true);
+                }
+            } else {
+                writeHelperAtomically(target, bundled, true);
             }
+            if (!stateDirectory.isDirectory() && !stateDirectory.mkdirs()) {
+                throw new java.io.IOException("Cannot create bundled helper state directory");
+            }
+            writeHelperAtomically(state, BundledExecutable.digest(bundled).getBytes(Charset.forName("UTF-8")), false);
         } catch (Exception e) {
             Logger.logErrorExtended(LOG_TAG, "Unable to install default executable " + assetPath + "\n" +
                 Logger.getStackTracesMarkdownString(null, Logger.getStackTracesStringArray(e)));
+        }
+    }
+
+    private static byte[] readHelperBytes(InputStream input) throws java.io.IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int read;
+        while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+        return output.toByteArray();
+    }
+
+    private static void writeHelperAtomically(File target, byte[] content, boolean executable) throws java.io.IOException {
+        File parent = target.getParentFile();
+        if (!parent.isDirectory() && !parent.mkdirs()) throw new java.io.IOException("Cannot create " + parent);
+        File temporary = File.createTempFile(".veyterm-helper-", ".tmp", parent);
+        try {
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                output.write(content);
+                output.getFD().sync();
+            }
+            if (executable && !temporary.setExecutable(true, false)) {
+                throw new java.io.IOException("Cannot mark helper executable: " + target);
+            }
+            if (!temporary.renameTo(target)) throw new java.io.IOException("Cannot replace " + target);
+        } finally {
+            temporary.delete();
+        }
+    }
+
+    private static String legacyHelperDigest(String assetPath) {
+        switch (assetPath) {
+            case "shell/veyterm-sudo": return "4f0eff6c92f898c2a77d663e0a1c1f155a8dfb3b32a3af1698014e6ae16ac470";
+            case "shell/veyterm-arch": return "e95d5e33361f1ed38ef314ea9a3b6c1b69bb7f5002ac8992b0feab2422dd9f4f";
+            case "shell/veyterm-agents": return "610fe5d2ce4cdb5686741b8af3160e6a04909805f3ea37d24f7b8037eb28c84f";
+            case "shell/veyterm-agent-setup": return "071cee76e133d5d5d571bba05dac4fc87d7c9591c781b4f53001f365924452bd";
+            case "shell/veyterm-agent-install": return "477c23e1f5311187186e9a64d62032d1c4f3f2b9d44987c9f2348d499e48a813";
+            default: return null;
         }
     }
 

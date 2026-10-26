@@ -6,9 +6,12 @@ printf 'ANDROID_APP_UID=%s\n' "$(id -u)"
 proot-distro login agents -- /bin/bash -s <<'GUEST'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
+work_directory="$(mktemp -d)"
+trap 'rm -rf "$work_directory"' EXIT
+mkdir -p "$work_directory/apt/partial" "$work_directory/node"
 cat /etc/os-release
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git xz-utils \
+apt-get -o "Dir::Cache::archives=$work_directory/apt" install -y --no-install-recommends ca-certificates curl git xz-utils \
     libatomic1 libstdc++6 procps util-linux python3 python3-venv build-essential
 
 if command -v node >/dev/null 2>&1 && node -e 'const [major,minor]=process.versions.node.split(".").map(Number); process.exit(major>22 || major===22 && minor>=19 ? 0 : 1)'; then
@@ -25,9 +28,7 @@ case "$(uname -m)" in
 esac
 node_version=v24.22.1
 archive="node-$node_version-linux-$node_arch.tar.xz"
-work_directory="$(mktemp -d)"
-trap 'rm -rf "$work_directory"' EXIT
-cd "$work_directory"
+cd "$work_directory/node"
 curl -fL --retry 3 "https://nodejs.org/dist/$node_version/SHASUMS256.txt" -o SHASUMS256.txt
 curl -fL --retry 3 "https://nodejs.org/dist/$node_version/$archive" -o "$archive"
 grep "  $archive\$" SHASUMS256.txt | sha256sum -c -

@@ -4,8 +4,11 @@ set -euo pipefail
 proot-distro login agents -- /bin/bash -s <<'GUEST'
 set -euo pipefail
 export PATH="$HOME/.local/bin:$HOME/.grok/bin:/usr/local/bin:$PATH"
-mkdir -p "$HOME/veyterm-agent-installers"
-cd "$HOME/veyterm-agent-installers"
+work_directory="$(mktemp -d)"
+trap 'rm -rf "$work_directory"' EXIT
+export npm_config_cache="$work_directory/npm-cache"
+mkdir "$work_directory/agy" "$work_directory/grok" "$work_directory/cursor" "$work_directory/run"
+cd "$work_directory/run"
 
 npm install -g @openai/codex@0.164.0
 codex --version
@@ -14,19 +17,19 @@ claude --version
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.4.0
 pi --version
 
-curl -fL --retry 3 https://antigravity.google/cli/install.sh -o agy.sh
-sha256sum agy.sh
-bash agy.sh
+curl -fL --retry 3 https://antigravity.google/cli/install.sh -o "$work_directory/agy/install.sh"
+sha256sum "$work_directory/agy/install.sh"
+bash "$work_directory/agy/install.sh"
 agy --version
 
-curl -fL --retry 3 https://x.ai/cli/install.sh -o grok.sh
-sha256sum grok.sh
-bash grok.sh
+curl -fL --retry 3 https://x.ai/cli/install.sh -o "$work_directory/grok/install.sh"
+sha256sum "$work_directory/grok/install.sh"
+bash "$work_directory/grok/install.sh"
 grok --version
 
-curl -fL --retry 3 https://cursor.com/install -o cursor.sh
-sha256sum cursor.sh
-bash cursor.sh
+curl -fL --retry 3 https://cursor.com/install -o "$work_directory/cursor/install.sh"
+sha256sum "$work_directory/cursor/install.sh"
+bash "$work_directory/cursor/install.sh"
 cursor-agent --version
 printf 'SIX_OFFICIAL_AGENTS_INSTALLED\n'
 GUEST

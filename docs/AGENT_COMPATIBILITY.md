@@ -28,6 +28,30 @@ Initial setup needs a network connection.
 For Python environments and other development tools, see the
 [software compatibility checks](SOFTWARE_COMPATIBILITY.md).
 
+## Helper upgrades and installation storage
+
+App startup installs missing bundled helpers and updates recognized bundled
+versions. SHA256 fingerprints identify the preceding installed version; known
+legacy fingerprints allow the first upgrade without existing state. Unrecognized
+contents are preserved. Symlinks, directories and other non-regular targets are
+skipped. Updates use a temporary file in the target directory and an atomic
+rename. Fingerprints live in `$PREFIX/var/lib/veyterm/bundled-helpers`.
+Shell configuration remains create-only.
+
+Each Agent installation now owns a temporary directory for its npm cache and
+downloaded installer scripts. Setup similarly puts apt package archives and Node
+downloads in its temporary directory. An EXIT trap removes that directory on
+success, failure or an early return. Existing user caches, apt package indexes,
+Agent binaries and the Debian root filesystem are retained. This prevents new
+installer residue; it does not claim to shrink the existing Linux environment.
+
+Local shell tests exercise six success/failure/early-return paths with command
+stubs, including preservation of an existing user npm cache. A normal debug APK
+upgrade on `emulator-5570` updated both changed helpers, preserved the
+package-provided `sudo` and `.zshrc`, and remained stable across another startup.
+The new helpers were not used to repeat the six network installations. The
+version and PTY results below belong to the earlier acceptance runs.
+
 ## Verified versions
 
 The following official releases were installed on the API 33 x86_64 emulator
