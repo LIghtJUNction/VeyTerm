@@ -251,7 +251,40 @@ public final class ApkZip {
     /** Explicit commit of a validated copy to a caller-staged file. Same-directory rename is
      * atomic on Android/Linux; no delete/truncate of the old file occurs before that rename. */
     public static void apply(File candidate, File original) throws IOException {
+        apply(candidate, original, fingerprint(original));
+    }
+
+    public static String fingerprint(File file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            long total = 0;
+            try (InputStream in = new FileInputStream(file)) {
+                byte[] bytes = new byte[65536]; int n;
+                while ((n = in.read(bytes)) != -1) {
+                    checkCancelled(); total += n;
+                    if (total > MAX_TOTAL) throw new IOException("File exceeds 4 GiB");
+                    md.update(bytes, 0, n);
+                }
+            }
+            return hex(md.digest());
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IOException(e); }
+    }
+
+    static String hex(byte[] bytes) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) out.append(String.format(Locale.ROOT, "%02x", b & 255));
+        return out.toString();
+    }
+
+    public static void requireFingerprint(File original, String expected) throws IOException {
+        if (expected == null || !expected.equals(fingerprint(original)))
+            throw new IOException("Opened file changed since this workspace/draft was loaded; reopen it before applying");
+    }
+
+    /** Conflict detection brackets staging; the final same-directory rename remains atomic. */
+    public static String apply(File candidate, File original, String expectedFingerprint) throws IOException {
         File target = original.getCanonicalFile();
+        requireFingerprint(target, expectedFingerprint);
         if (!target.isFile()) throw new IOException("Opened file no longer exists");
         if (candidate.getCanonicalFile().equals(target)) throw new IOException("Candidate must be a separate output");
         File temp = File.createTempFile(".apk-apply-", ".tmp", target.getParentFile());
@@ -260,7 +293,11 @@ public final class ApkZip {
                 copy(in, out, MAX_TOTAL); out.getFD().sync();
             }
             test(temp); checkCancelled();
+            String appliedFingerprint = fingerprint(temp);
+            requireFingerprint(target, expectedFingerprint);
             if (!target.isFile() || !temp.renameTo(target)) throw new IOException("Cannot atomically apply APK; original preserved");
+            // No interruptible I/O after commit: callers must report this successful apply.
+            return appliedFingerprint;
         } finally { temp.delete(); }
     }
 

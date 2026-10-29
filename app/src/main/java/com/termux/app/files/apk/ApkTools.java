@@ -36,9 +36,9 @@ public final class ApkTools {
         StringBuilder s = new StringBuilder();
         s.append("File: ").append(apk).append("\nBytes: ").append(apk.length()).append("\nLabel: ").append(app.loadLabel(pm))
             .append("\nPackage: ").append(p.packageName).append("\nVersion: ").append(p.versionName).append(" (")
-            .append(Build.VERSION.SDK_INT >= 28 ? p.getLongVersionCode() : p.versionCode).append(")")
+            .append(Build.VERSION.SDK_INT >= 28 ? Api28.version(p) : p.versionCode).append(")")
             .append("\nTarget SDK: ").append(app.targetSdkVersion);
-        if (Build.VERSION.SDK_INT >= 24) s.append("\nMinimum SDK: ").append(app.minSdkVersion);
+        if (Build.VERSION.SDK_INT >= 24) s.append("\nMinimum SDK: ").append(Api24.minSdk(app));
         s.append("\nDebuggable: ").append((app.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0)
             .append("\nNative extraction: ").append((app.flags & 0x10000000) != 0)
             .append("\nSplits: ").append(Arrays.toString(p.splitNames)).append("\n\nRequested permissions:\n");
@@ -123,11 +123,7 @@ public final class ApkTools {
             Calendar end = Calendar.getInstance(); end.add(Calendar.YEAR, 25);
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA", "AndroidKeyStore");
             if (Build.VERSION.SDK_INT >= 23) {
-                generator.initialize(new KeyGenParameterSpec.Builder(DEVICE_KEY_ALIAS, KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY)
-                    .setKeySize(2048).setDigests(KeyProperties.DIGEST_SHA1, KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
-                    .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
-                    .setCertificateSubject(new X500Principal("CN=VeyTerm user APK key"))
-                    .setCertificateSerialNumber(new BigInteger(128, new SecureRandom())).setCertificateNotAfter(end.getTime()).build());
+                Api23.initialize(generator, end);
             } else {
                 generator.initialize(new KeyPairGeneratorSpec.Builder(context.getApplicationContext()).setAlias(DEVICE_KEY_ALIAS)
                     .setKeySize(2048).setSubject(new X500Principal("CN=VeyTerm user APK key"))
@@ -139,6 +135,22 @@ public final class ApkTools {
         List<X509Certificate> chain = new ArrayList<>();
         for (Certificate c : ks.getCertificateChain(DEVICE_KEY_ALIAS)) chain.add((X509Certificate)c);
         return new ApkSignatures.Identity((PrivateKey)ks.getKey(DEVICE_KEY_ALIAS, null), chain);
+    }
+
+    private static final class Api23 {
+        static void initialize(KeyPairGenerator generator, Calendar end) throws GeneralSecurityException {
+            generator.initialize(new KeyGenParameterSpec.Builder(DEVICE_KEY_ALIAS, KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY)
+                    .setKeySize(2048).setDigests(KeyProperties.DIGEST_SHA1, KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                    .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                    .setCertificateSubject(new X500Principal("CN=VeyTerm user APK key"))
+                    .setCertificateSerialNumber(new BigInteger(128, new SecureRandom())).setCertificateNotAfter(end.getTime()).build());
+        }
+    }
+    private static final class Api24 {
+        static int minSdk(ApplicationInfo info) { return info.minSdkVersion; }
+    }
+    private static final class Api28 {
+        static long version(PackageInfo info) { return info.getLongVersionCode(); }
     }
 
     /** Copy into the only FileProvider-exposed directory; don't expose arbitrary application paths. */

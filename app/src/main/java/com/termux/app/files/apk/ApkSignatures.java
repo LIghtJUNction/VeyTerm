@@ -47,22 +47,35 @@ public final class ApkSignatures {
     }
 
     public static ApkVerifier.Result verify(File apk) throws Exception {
+        return verify(apk, null);
+    }
+
+    /** v4 is detached: it must be supplied to the verifier, not inferred from APK flags. */
+    public static ApkVerifier.Result verify(File apk, File idsig) throws Exception {
         ApkZip.checkCancelled();
-        ApkVerifier.Result result = new ApkVerifier.Builder(apk).build().verify();
+        ApkVerifier.Builder builder = new ApkVerifier.Builder(apk);
+        if (idsig != null) builder.setV4SignatureFile(idsig);
+        ApkVerifier.Result result = builder.build().verify();
         ApkZip.checkCancelled(); return result;
     }
 
     public static String report(File apk) throws Exception {
-        ApkVerifier.Result r = verify(apk);
+        File sidecar = new File(apk.getPath() + ".idsig");
+        ApkVerifier.Result r = verify(apk, sidecar.isFile() ? sidecar : null);
         StringBuilder text = new StringBuilder("Verified: ").append(r.isVerified())
             .append("\nv1: ").append(r.isVerifiedUsingV1Scheme()).append("\nv2: ").append(r.isVerifiedUsingV2Scheme())
-            .append("\nv3: ").append(r.isVerifiedUsingV3Scheme()).append("\n");
+            .append("\nv3: ").append(r.isVerifiedUsingV3Scheme())
+            .append("\nv4 sidecar: ").append(sidecar.isFile() ? r.isVerifiedUsingV4Scheme() : "not supplied").append("\n");
         for (X509Certificate c : r.getSignerCertificates()) text.append(certificate(c));
         text.append("Errors: ").append(r.getErrors()).append("\nWarnings: ").append(r.getWarnings());
         for (ApkVerifier.Result.V1SchemeSignerInfo signer : r.getV1SchemeSigners())
             text.append("\nv1 signer errors: ").append(signer.getErrors()).append("; warnings: ").append(signer.getWarnings());
         for (ApkVerifier.Result.V2SchemeSignerInfo signer : r.getV2SchemeSigners())
             text.append("\nv2 signer errors: ").append(signer.getErrors()).append("; warnings: ").append(signer.getWarnings());
+        for (ApkVerifier.Result.V3SchemeSignerInfo signer : r.getV3SchemeSigners())
+            text.append("\nv3 signer errors: ").append(signer.getErrors()).append("; warnings: ").append(signer.getWarnings());
+        for (ApkVerifier.Result.V4SchemeSignerInfo signer : r.getV4SchemeSigners())
+            text.append("\nv4 signer errors: ").append(signer.getErrors()).append("; warnings: ").append(signer.getWarnings());
         return text.toString();
     }
 
@@ -76,19 +89,44 @@ public final class ApkSignatures {
 
     /** Explicit signing only. Verify the staged signed result before publishing it. */
     public static void sign(File input, File output, Identity identity) throws Exception {
+        sign(input, output, identity, false, false);
+    }
+
+    /** Both files are verified before publication. A failed pair publication rolls back our files. */
+    public static void sign(File input, File output, Identity identity, boolean v3, boolean v4) throws Exception {
         if (input.getCanonicalFile().equals(output.getCanonicalFile())) throw new IOException("Use a separate signed output APK");
+        File idsig = new File(output.getPath() + ".idsig");
+        if (idsig.exists()) throw new IOException("Sidecar destination already exists: " + idsig);
         File staged = ApkZip.temporary(output); File unsigned = File.createTempFile(".apk-unsigned-", ".apk", staged.getParentFile());
+        File stagedIdsig = File.createTempFile(".apk-v4-", ".idsig", staged.getParentFile());
+        boolean publishedSidecar = false;
         try {
             if (!unsigned.delete()) throw new IOException("Cannot prepare unsigned staging path");
             ApkZip.rewrite(input, unsigned, Collections.emptyMap(), Collections.emptySet());
             ApkSigner.SignerConfig signer = new ApkSigner.SignerConfig.Builder("VEYTERM", identity.key, identity.chain).build();
             new ApkSigner.Builder(Collections.singletonList(signer)).setInputApk(unsigned).setOutputApk(staged)
-                .setV1SigningEnabled(true).setV2SigningEnabled(true).setV3SigningEnabled(false)
-                .setV4SigningEnabled(false).setOtherSignersSignaturesPreserved(false).build().sign();
-            ApkVerifier.Result verification = verify(staged);
-            if (!verification.isVerified() || !verification.isVerifiedUsingV1Scheme() || !verification.isVerifiedUsingV2Scheme())
+                .setV1SigningEnabled(true).setV2SigningEnabled(true).setV3SigningEnabled(v3)
+                .setV4SigningEnabled(v4).setV4ErrorReportingEnabled(true).setV4SignatureOutputFile(stagedIdsig)
+                .setOtherSignersSignaturesPreserved(false).build().sign();
+            ApkVerifier.Result verification = verify(staged, v4 ? stagedIdsig : null);
+            // A normal verifier intentionally skips old schemes when minSdk is newer. Probe each
+            // requested scheme in its platform range as well as verifying the APK's actual range.
+            ApkVerifier.Result v1Result = new ApkVerifier.Builder(staged).setMinCheckedPlatformVersion(21)
+                .setMaxCheckedPlatformVersion(23).build().verify();
+            ApkVerifier.Result v2Result = new ApkVerifier.Builder(staged).setMinCheckedPlatformVersion(24)
+                .setMaxCheckedPlatformVersion(27).build().verify();
+            if (!verification.isVerified() || !v1Result.isVerified() || !v1Result.isVerifiedUsingV1Scheme()
+                || !v2Result.isVerified() || !v2Result.isVerifiedUsingV2Scheme())
                 throw new IOException("Signed result failed v1/v2 verification: " + verification.getErrors());
+            if (v3 && !verification.isVerifiedUsingV3Scheme()) throw new IOException("Requested v3 signature did not verify");
+            if (v4 && (!stagedIdsig.isFile() || stagedIdsig.length() == 0 || !verification.isVerifiedUsingV4Scheme()))
+                throw new IOException("Requested v4 sidecar did not verify: " + verification.getErrors());
+            if (v4) { ApkZip.publish(stagedIdsig, idsig); publishedSidecar = true; }
             ApkZip.publish(staged, output);
-        } finally { staged.delete(); unsigned.delete(); }
+            publishedSidecar = false;
+        } finally {
+            if (publishedSidecar) idsig.delete();
+            staged.delete(); unsigned.delete(); stagedIdsig.delete();
+        }
     }
 }

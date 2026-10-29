@@ -40,7 +40,8 @@ def main():
     sources.append(here / "ApkRoundTripTest.java")
     if not args.android_jar.is_file():
         parser.error("Missing Android compile API jar; pass --android-jar (no SDK is downloaded)")
-    with tempfile.TemporaryDirectory(prefix=".apk-validation-", dir=here) as name:
+    (repo / "build/apk-advanced-check").mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".apk-validation-", dir=repo / "build/apk-advanced-check") as name:
         temp = Path(name)
         jars = []
         downloaded = 0
@@ -81,11 +82,12 @@ def main():
         classes = temp / "classes"
         classpath = os.pathsep.join(map(str, jars))
         android_cp = os.pathsep.join(str(android_arsc if p == arsc else p) for p in jars) + os.pathsep + str(args.android_jar.resolve())
-        subprocess.run(["javac", "-source", "8", "-target", "8", "-Xlint:-options", "-encoding", "UTF-8", "-cp", android_cp, "-d", str(classes), *map(str, sources[:-1])], check=True)
-        subprocess.run(["javac", "-source", "8", "-target", "8", "-Xlint:-options", "-encoding", "UTF-8", "-cp", str(classes) + os.pathsep + classpath, "-d", str(classes), str(sources[-1])], check=True)
+        subprocess.run(["javac", "-J-Xmx256m", "-J-Djava.io.tmpdir=" + str(temp), "-source", "8", "-target", "8", "-Xlint:-options", "-encoding", "UTF-8", "-cp", android_cp, "-d", str(classes), *map(str, sources[:-1])], check=True)
+        subprocess.run(["javac", "-J-Xmx256m", "-J-Djava.io.tmpdir=" + str(temp), "-source", "8", "-target", "8", "-Xlint:-options", "-encoding", "UTF-8", "-cp", str(classes) + os.pathsep + classpath, "-d", str(classes), str(sources[-1])], check=True)
         store = temp / "test.p12"
-        subprocess.run(["keytool", "-genkeypair", "-alias", "test-key", "-keyalg", "RSA", "-keysize", "2048", "-validity", "365", "-dname", "CN=Ephemeral APK test", "-storetype", "PKCS12", "-keystore", str(store), "-storepass", "test-password", "-keypass", "test-password"], check=True)
-        subprocess.run(["java", "-Xmx512m", "-cp", str(classes) + os.pathsep + classpath, "com.termux.app.files.apk.ApkRoundTripTest", str(temp / "fixtures"), str(store)], check=True)
+        for alias in ("test-key", "test-other"):
+            subprocess.run(["keytool", "-J-Xmx128m", "-J-Djava.io.tmpdir=" + str(temp), "-genkeypair", "-alias", alias, "-keyalg", "RSA", "-keysize", "2048", "-validity", "365", "-dname", "CN=Ephemeral APK test", "-storetype", "PKCS12", "-keystore", str(store), "-storepass", "test-password", "-keypass", "test-password"], check=True)
+        subprocess.run(["java", "-Xmx256m", "-Djava.io.tmpdir=" + str(temp), "-cp", str(classes) + os.pathsep + classpath, "com.termux.app.files.apk.ApkRoundTripTest", str(temp / "fixtures"), str(store)], check=True)
         print(f"Standalone compile passed for {len(sources) - 1} production Java files; downloaded {downloaded} bytes; ephemeral data cleaned on exit.")
 
 

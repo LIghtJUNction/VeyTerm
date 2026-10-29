@@ -27,6 +27,20 @@ public final class ApkToolsActivity extends Activity {
     private EditText editor;
     private ProgressDialog progress;
     private Runnable editorReturn;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private File draftsDirectory;
+    private String workspaceFingerprint, editKind, editEntry, editDescriptor, draftLoadError;
+    private Runnable draftSave;
+    private String shownInstallConfirmation;
+    private final Runnable installPoll = new Runnable() {
+        public void run() {
+            if (destroyed) return;
+            String installStatus = ApkInstaller.status(ApkToolsActivity.this);
+            if (!busy && !installStatus.isEmpty()) status.setText(installStatus);
+            if (!busy) continueInstall(false);
+            handler.postDelayed(this, 1000);
+        }
+    };
     private static final int PICK_KEYSTORE = 7001, INSTALL_SETTINGS = 7002;
 
     private interface Result<T> { void accept(T value) throws Exception; }
@@ -45,7 +59,39 @@ public final class ApkToolsActivity extends Activity {
         setResult(modified ? RESULT_OK : RESULT_CANCELED, getIntent());
         scratch = new File(getCacheDir(), "apk-session-" + UUID.randomUUID());
         if (!scratch.mkdirs()) { error(new IOException("Cannot create private APK workspace")); finish(); return; }
+        draftsDirectory = new File(getFilesDir(), "apk-editor-drafts");
+        loadWorkspace();
+    }
+
+    private boolean packageSet() {
+        if (apk == null) return false;
+        String name = apk.getName().toLowerCase(Locale.ROOT);
+        return apk.isDirectory() || name.endsWith(".apks") || name.endsWith(".xapk");
+    }
+
+    private void loadWorkspace() {
         home();
+        if (apk != null && !packageSet()) work("Checking opened APK and saved draft", () -> {
+            workspaceFingerprint = ApkZip.fingerprint(apk);
+            draftLoadError = null;
+            try { return ApkDrafts.load(draftsDirectory, apk); }
+            catch (Exception e) { draftLoadError = e.getMessage(); return null; }
+        }, draft -> {
+            if (draftLoadError != null) {
+                new AlertDialog.Builder(this).setTitle("Saved draft could not be read").setMessage(draftLoadError)
+                    .setPositiveButton("Discard draft", (d, which) -> discardDraft())
+                    .setNegativeButton("Close workspace", (d, which) -> finish()).setCancelable(false).show();
+                return;
+            }
+            if (draft == null) return;
+            boolean matching = workspaceFingerprint.equals(draft.fingerprint);
+            AlertDialog.Builder prompt = new AlertDialog.Builder(this).setTitle("Recover APK editor draft")
+                .setMessage(draft.entry + "\n" + (matching ? "Restore saved private editor text?" : "The APK changed. This draft cannot safely be compiled against it."))
+                .setNegativeButton("Discard draft", (d, which) -> discardDraft())
+                .setNeutralButton("Close workspace", (d, which) -> finish()).setCancelable(false);
+            if (matching) prompt.setPositiveButton("Restore", (d, which) -> restoreDraft(draft));
+            prompt.show();
+        });
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -62,7 +108,7 @@ public final class ApkToolsActivity extends Activity {
         page("APK tools"); homeScreen = true; status.setText(apk == null ? "No APK selected" : apk.getAbsolutePath());
         ScrollView scroll = new ScrollView(this); LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL); scroll.addView(actions); body.addView(scroll);
-        if (apk != null) {
+        if (apk != null && !packageSet()) {
             button(actions, "APK information, permissions and components", () -> work("Reading manifest", () -> ApkTools.metadata(this, apk), text -> text("APK information", text)));
             button(actions, "Verify signatures and certificates", () -> work("Verifying signatures", () -> ApkSignatures.report(apk), text -> text("Signature verification", text)));
             button(actions, "Browse ZIP / DEX / resources", this::zip);
@@ -70,11 +116,14 @@ public final class ApkToolsActivity extends Activity {
             button(actions, "Test every ZIP entry (CRC)", () -> work("Testing ZIP", () -> { ApkZip.test(apk); return "Every ZIP entry passed CRC and size checks."; }, value -> text("ZIP test", value)));
             button(actions, "Re-sign with device-generated key", this::signDevice);
             button(actions, "Re-sign with imported user keystore", this::pickKeystore);
-            button(actions, "Install APK through Android", this::install);
+            button(actions, "Install APK through Android session", this::install);
         }
+        if (apk != null && packageSet()) button(actions, "Install selected base + splits from this set", this::install);
+        button(actions, "Install APK / APK directory / APKS / XAPK", () -> path("Local APK, package-set directory, APKS or XAPK", "", this::installSet));
+        button(actions, "Continue Android install confirmation", () -> continueInstall(true));
         button(actions, "Extract installed app + all splits", this::installed);
         if (apk == null) button(actions, "Open a local APK", () -> path("APK path", "", file -> {
-            apk = file; getIntent().putExtra(ApkTools.EXTRA_FILE_PATH, file.getAbsolutePath()); home();
+            apk = file; getIntent().putExtra(ApkTools.EXTRA_FILE_PATH, file.getAbsolutePath()); loadWorkspace();
         }));
         button(actions, "Open-source licenses", () -> work("Reading bundled licenses", () -> {
             int id = getResources().getIdentifier("apk_third_party_notices", "raw", getPackageName());
@@ -189,12 +238,14 @@ public final class ApkToolsActivity extends Activity {
             work("Reading DEX", () -> ApkZip.read(apk, name, ApkFormats.EDIT_LIMIT), bytes -> dexMenu(name, bytes));
         } else if (name.equals("resources.arsc")) {
             work("Decoding resources.arsc", () -> ApkFormats.decodeArsc(ApkZip.read(apk, name, ApkFormats.EDIT_LIMIT)),
-                json -> edit("ARSC typed JSON", json, name, ApkFormats::compileArsc, this::zip));
+                json -> edit("ARSC typed JSON", json, name, ApkFormats::compileArsc, this::zip, "ARSC", ""));
         } else if (name.endsWith(".xml")) {
             work("Decoding binary XML", () -> ApkZip.read(apk, name, ApkFormats.EDIT_LIMIT), bytes ->
-                new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{"Read decoded XML", "Edit typed JSON and compile binary XML"}, (d, index) -> {
+                new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{"Read decoded XML", "Edit typed JSON and compile binary XML", "Edit source XML and compile binary XML"}, (d, index) -> {
                     if (index == 0) work("Decoding XML", () -> ApkFormats.xmlPreview(bytes), xml -> text(name, xml));
-                    else work("Decoding typed XML", () -> ApkFormats.decodeAxml(bytes), json -> edit("AXML typed JSON", json, name, ApkFormats::compileAxml, this::zip));
+                    else if (index == 1) work("Decoding typed XML", () -> ApkFormats.decodeAxml(bytes), json -> edit("AXML typed JSON", json, name, ApkFormats::compileAxml, this::zip, "AXML", ""));
+                    else work("Resolving XML resource symbols", () -> ApkSourceXml.decode(apk, name), xml ->
+                        edit("Source XML", xml, name, value -> ApkSourceXml.compile(apk, value), this::zip, "XML", ""));
                 }).show());
         } else error(new IOException("This entry is not DEX, binary Android XML or resources.arsc. Use Extract or Replace for other files."));
     }
@@ -222,11 +273,12 @@ public final class ApkToolsActivity extends Activity {
             if (which == 0) work("Reading members", () -> ApkFormats.members(bytes, type), members ->
                 list(type + " members", members, member -> new AlertDialog.Builder(this).setMessage(member).setPositiveButton("OK", null).show(), () -> dexMenu(name, bytes)));
             else work("Disassembling class", () -> ApkFormats.smali(bytes, type), source ->
-                edit(type, source, name, value -> ApkFormats.replaceClass(bytes, type, value, scratch), this::zip));
+                edit(type, source, name, value -> ApkFormats.replaceClass(bytes, type, value, scratch), this::zip, "SMALI", type));
         }).show();
     }
 
-    private void edit(String title, String initial, String entry, SourceCompiler compiler, Runnable back) {
+    private void edit(String title, String initial, String entry, SourceCompiler compiler, Runnable back, String kind, String descriptor) {
+        editKind = kind; editEntry = entry; editDescriptor = descriptor;
         if (initial.length() > 2 * 1024 * 1024) { error(new IOException("Native editor limit is 2 MiB text. Export/replace the entry for larger edits.")); return; }
         page(title); editorReturn = back;
         TextView help = new TextView(this); help.setText("Compile creates a separate unsigned APK. Apply commits it to the opened file. Keep class descriptors/resource IDs consistent."); body.addView(help);
@@ -236,7 +288,7 @@ public final class ApkToolsActivity extends Activity {
         editor = new EditText(this); editor.setTypeface(Typeface.MONOSPACE); editor.setTextSize(13);
         editor.setGravity(Gravity.TOP | Gravity.START); editor.setInputType(android.text.InputType.TYPE_CLASS_TEXT
             | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        editor.setText(initial); body.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
+        editor.setSaveEnabled(false); editor.setText(initial); body.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout findRow = new LinearLayout(this); findRow.setOrientation(LinearLayout.HORIZONTAL);
         EditText find = new EditText(this); find.setSingleLine(true); find.setHint("Find literal text");
         findRow.addView(find, new LinearLayout.LayoutParams(0, -2, 1));
@@ -252,14 +304,21 @@ public final class ApkToolsActivity extends Activity {
         });
         editor.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) { dirty = true; }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                dirty = true;
+                if (draftSave != null) handler.removeCallbacks(draftSave);
+                draftSave = () -> persistDraft(); handler.postDelayed(draftSave, 500);
+            }
             public void afterTextChanged(Editable s) {}
         });
         save.setOnClickListener(v -> {
             if (busy) return;
             final String source = editor.getText().toString();
             outputPath(output -> work("Compiling binary format and rebuilding unsigned APK", () -> {
-                byte[] compiled = compiler.compile(source); File replacement = File.createTempFile("apk-compiled-", ".bin", scratch);
+                ApkZip.requireFingerprint(apk, workspaceFingerprint);
+                byte[] compiled = compiler.compile(source);
+                ApkZip.requireFingerprint(apk, workspaceFingerprint);
+                File replacement = File.createTempFile("apk-compiled-", ".bin", scratch);
                 try {
                     try (FileOutputStream out = new FileOutputStream(replacement)) { out.write(compiled); out.getFD().sync(); }
                     ApkZip.rewrite(apk, output, Collections.singletonMap(entry, replacement), Collections.emptySet()); return output;
@@ -272,7 +331,7 @@ public final class ApkToolsActivity extends Activity {
         if (busy) return;
         if (!dirty) { back.run(); return; }
         new AlertDialog.Builder(this).setMessage("Discard unsaved changes?").setNegativeButton("Keep editing", null)
-            .setPositiveButton("Discard", (dialog, which) -> { dirty = false; back.run(); }).show();
+            .setPositiveButton("Discard", (dialog, which) -> { dirty = false; discardDraft(); back.run(); }).show();
     }
 
     private void outputPath(Result<File> action) {
@@ -282,7 +341,15 @@ public final class ApkToolsActivity extends Activity {
     private void outputReady(File output) { outputReady(output, false); }
 
     private void outputReady(File output, boolean signed) {
-        new AlertDialog.Builder(this).setTitle(signed ? "Signed APK: v1 and v2 verified" : "Unsigned APK copy written")
+        File idsig = new File(output.getPath() + ".idsig");
+        if (signed && idsig.isFile()) {
+            new AlertDialog.Builder(this).setTitle("Signed APK + v4 sidecar verified")
+                .setMessage(output.getAbsolutePath() + "\n" + idsig.getAbsolutePath()
+                    + "\nBoth files are separate outputs. Keep them together. The opened file has not changed. Pair apply is unavailable because two-file replacement is not atomic.")
+                .setPositiveButton("Keep separate APK + .idsig", null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle(signed ? "Signed APK: requested schemes verified" : "Unsigned APK copy written")
             .setMessage(output.getAbsolutePath() + "\nApply this copy to the opened file to commit the edit. The opened file is preserved if applying fails."
                 + (signed ? "" : "\nRe-sign before installing an edited APK."))
             .setNegativeButton("Keep separate copy", null)
@@ -291,8 +358,11 @@ public final class ApkToolsActivity extends Activity {
     }
 
     private void applyOutput(File output, boolean close) {
-        work("Atomically applying APK to the opened file", () -> { ApkZip.apply(output, apk); return apk; }, file -> {
-            modified = true; dirty = false; setResult(RESULT_OK, getIntent());
+        work("Atomically applying APK to the opened file", () -> {
+            if (new File(apk.getPath() + ".idsig").exists()) throw new IOException("Opened APK has a detached .idsig. Keep separate outputs to avoid leaving a stale sidecar.");
+            workspaceFingerprint = ApkZip.apply(output, apk, workspaceFingerprint); return apk;
+        }, file -> {
+            modified = true; dirty = false; discardDraft(); setResult(RESULT_OK, getIntent());
             if (close) finish(); else home();
         });
     }
@@ -300,12 +370,23 @@ public final class ApkToolsActivity extends Activity {
     private void signDevice() {
         new AlertDialog.Builder(this).setTitle("Sign with device key")
             .setMessage("Generate or reuse your device's private APK key. It cannot be exported and is lost if VeyTerm app data is deleted. Android will reject updates signed with a different key.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Choose signed output", (dialog, which) -> signPath(output ->
-                work("Signing with AndroidKeyStore", () -> { ApkSignatures.sign(apk, output, ApkTools.deviceIdentity(this)); return output; }, this::signedReady))).show();
+            .setNegativeButton("Cancel", null).setPositiveButton("Choose schemes", (dialog, which) ->
+                work("Loading AndroidKeyStore identity", () -> ApkTools.deviceIdentity(this), this::signWith)).show();
     }
 
-    private void signPath(Result<File> action) {
-        path("New signed APK (must not exist)", apk.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-signed.apk", action);
+    private void signWith(ApkSignatures.Identity identity) {
+        new AlertDialog.Builder(this).setTitle("Signature schemes")
+            .setItems(new String[]{"v1 + v2", "v1 + v2 + v3", "v1 + v2 + v3 and detached v4 .idsig"}, (d, index) ->
+                path("New signed APK (must not exist)", apk.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-signed.apk", output -> {
+                    Runnable sign = () -> work("Signing and verifying requested schemes", () -> {
+                        ApkZip.requireFingerprint(apk, workspaceFingerprint);
+                        ApkSignatures.sign(apk, output, identity, index >= 1, index == 2); return output;
+                    }, this::signedReady);
+                    if (index == 2) new AlertDialog.Builder(this).setTitle("Create two separate outputs")
+                        .setMessage(output.getAbsolutePath() + "\n" + output.getAbsolutePath() + ".idsig\nKeep both files together. The original will stay unchanged.")
+                        .setNegativeButton("Cancel", null).setPositiveButton("Create and verify both", (confirm, which) -> sign.run()).show();
+                    else sign.run();
+                })).show();
     }
     private void signedReady(File output) { outputReady(output, true); }
 
@@ -335,9 +416,7 @@ public final class ApkToolsActivity extends Activity {
             work("Loading user keystore", () -> {
                 try { return ApkSignatures.importKey(store, storeType, sp, keyAlias, kp); }
                 finally { Arrays.fill(sp, '\0'); Arrays.fill(kp, '\0'); store.delete(); importedStore = null; }
-            }, identity -> signPath(output -> work("Signing and verifying v1/v2", () -> {
-                ApkSignatures.sign(apk, output, identity); return output;
-            }, this::signedReady)));
+            }, this::signWith);
         }));
         dialog.setOnCancelListener(d -> { store.delete(); importedStore = null; });
         dialog.show();
@@ -370,18 +449,108 @@ public final class ApkToolsActivity extends Activity {
                 path("New output directory for base + every split", new File(external, app.packageName + "-apks").getAbsolutePath(), output ->
                     work("Extracting base and " + app.splitCount + " splits", () -> ApkTools.extractInstalled(this, app.packageName, output), files -> {
                         List<String> paths = new ArrayList<>(); for (File f : files) paths.add(f.getAbsolutePath());
-                        text("Extracted installed APK set", join(paths) + "\n\nSplit sets require a session-based installer. This screen installs single APKs only.");
+                        text("Extracted installed APK set", join(paths) + "\nUse Install APK / APK directory / APKS / XAPK to install this directory.");
                     }));
             }, this::home);
         });
     }
 
-    private void install() {
-        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+    private void install() { installSet(apk); }
+
+    private void installSet(File input) {
+        if (Build.VERSION.SDK_INT >= 26 && !Api26.canInstall(this)) {
             try { startActivityForResult(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())), INSTALL_SETTINGS); }
             catch (ActivityNotFoundException e) { error(e); } return;
         }
-        work("Preparing a read-only APK install URI", () -> ApkTools.prepareInstall(this, apk), prepared -> startActivity(ApkTools.installIntent(this, prepared)));
+        File directory = new File(scratch, "install-" + UUID.randomUUID());
+        work("Copying and verifying package-set signatures", () -> ApkPackageSet.prepare(input, directory), parts -> {
+            String[] labels = new String[parts.size()]; boolean[] checked = new boolean[parts.size()];
+            for (int i = 0; i < parts.size(); i++) { labels[i] = parts.get(i).toString(); checked[i] = true; }
+            AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Select ONE base + matching splits")
+                .setMultiChoiceItems(labels, checked, (d, which, value) -> checked[which] = value)
+                .setNegativeButton("Cancel", (d, which) -> queueScratchCleanup(directory))
+                .setPositiveButton("Validate selection", null).create();
+            dialog.setOnCancelListener(d -> queueScratchCleanup(directory));
+            dialog.setOnShowListener(d -> dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> {
+                List<ApkPackageSet.Part> selected = new ArrayList<>();
+                for (int i = 0; i < checked.length; i++) if (checked[i]) selected.add(parts.get(i));
+                work("Validating package/version/signer/split dependencies", () ->
+                    ApkPackageSet.validate(selected, Build.VERSION.SDK_INT, Arrays.asList(Build.SUPPORTED_ABIS)), validated -> {
+                    dialog.dismiss();
+                    new AlertDialog.Builder(this).setTitle("Submit package set to Android?")
+                        .setMessage(validated.get(0).packageName + "\n" + validated.size() + " APK(s). Android will request confirmation and report the final result.")
+                        .setNegativeButton("Cancel", (confirm, which) -> queueScratchCleanup(directory))
+                        .setOnCancelListener(confirm -> queueScratchCleanup(directory))
+                        .setPositiveButton("Install through Android", (confirm, which) -> work("Writing Android installation session", () -> {
+                            try { return ApkInstaller.install(this, validated); }
+                            finally { ApkFormats.deleteScratch(directory); }
+                        }, id -> status.setText("Session " + id + " submitted. Installation is not yet confirmed."))).show();
+                });
+            }));
+            dialog.show();
+        });
+    }
+
+    private void queueScratchCleanup(File directory) { executor.execute(() -> ApkFormats.deleteScratch(directory)); }
+
+    private void continueInstall(boolean explicit) {
+        try {
+            Intent confirmation = ApkInstaller.confirmation(this);
+            if (confirmation == null) { if (explicit) status.setText(ApkInstaller.status(this)); return; }
+            String key = confirmation.toUri(Intent.URI_INTENT_SCHEME);
+            if (!explicit && key.equals(shownInstallConfirmation)) return;
+            shownInstallConfirmation = key; startActivity(confirmation);
+        } catch (Exception e) { if (explicit) error(e); }
+    }
+
+    private static final class Api26 {
+        static boolean canInstall(Context context) { return context.getPackageManager().canRequestPackageInstalls(); }
+    }
+
+    private void persistDraft() {
+        if (editor == null || !dirty || workspaceFingerprint == null || executor.isShutdown()) return;
+        try {
+            ApkDrafts.Draft draft = new ApkDrafts.Draft(apk, workspaceFingerprint, editKind, editEntry, editDescriptor, editor.getText().toString());
+            final File opened = apk;
+            executor.execute(() -> {
+                try { ApkDrafts.save(draftsDirectory, opened, draft); }
+                catch (Exception e) { runOnUiThread(() -> { if (!destroyed) status.setText("Draft was not saved: " + e.getMessage()); }); }
+            });
+        } catch (Exception e) { error(e); }
+    }
+
+    private void discardDraft() {
+        if (draftSave != null) handler.removeCallbacks(draftSave);
+        File opened = apk;
+        executor.execute(() -> {
+            try { ApkDrafts.discard(draftsDirectory, opened); }
+            catch (Exception e) { runOnUiThread(() -> error(e)); }
+        });
+    }
+
+    private void restoreDraft(ApkDrafts.Draft draft) {
+        work("Checking draft fingerprint", () -> {
+            if (!draft.matches(apk)) throw new IOException("APK changed; draft restore refused");
+            return draft.kind.equals("SMALI") ? ApkZip.read(apk, draft.entry, ApkFormats.EDIT_LIMIT) : null;
+        }, bytes -> {
+            SourceCompiler compiler;
+            switch (draft.kind) {
+                case "ARSC": compiler = ApkFormats::compileArsc; break;
+                case "AXML": compiler = ApkFormats::compileAxml; break;
+                case "XML": compiler = source -> ApkSourceXml.compile(apk, source); break;
+                case "SMALI": compiler = source -> ApkFormats.replaceClass(bytes, draft.descriptor, source, scratch); break;
+                default: throw new IOException("Unknown saved editor mode");
+            }
+            edit("Recovered " + draft.kind, draft.text, draft.entry, compiler, this::zip, draft.kind, draft.descriptor);
+            dirty = true;
+        });
+    }
+
+    @Override protected void onResume() {
+        super.onResume(); handler.removeCallbacks(installPoll); handler.post(installPoll);
+    }
+    @Override protected void onPause() {
+        persistDraft(); handler.removeCallbacks(installPoll); super.onPause();
     }
 
     private static String join(List<String> lines) { StringBuilder result = new StringBuilder(); for (String line : lines) result.append(line).append('\n'); return result.toString(); }
@@ -398,6 +567,9 @@ public final class ApkToolsActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        persistDraft();
+        if (draftSave != null) handler.removeCallbacks(draftSave);
+        handler.removeCallbacks(installPoll);
         destroyed = true; cancelRequested = true; Thread active = worker; if (active != null) active.interrupt();
         if (progress != null) { progress.dismiss(); progress = null; }
         // Queue cleanup AFTER the active writer; deleting scratch while a library writes can lose artifacts.
