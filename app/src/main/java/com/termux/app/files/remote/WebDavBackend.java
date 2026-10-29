@@ -53,17 +53,7 @@ final class WebDavBackend implements RemoteFiles.Backend {
             if (response.code()!=207 || response.body()==null) throw new IOException();
             ByteArrayOutputStream bytes=new ByteArrayOutputStream(); byte[] block=new byte[8192]; int n;
             try (InputStream in=response.body().byteStream()) { while ((n=in.read(block))!=-1) { if (bytes.size()+n>2*1024*1024) throw new IOException(); bytes.write(block,0,n); } }
-            byte[] data=bytes.toByteArray(); String declarationScan=new String(data,java.nio.charset.StandardCharsets.ISO_8859_1);
-            // Reject DTDs before parsing, including encodings that could hide their markup from this check.
-            String encoding=response.header("Content-Type","");
-            if (encoding.toLowerCase(Locale.ROOT).contains("utf-16") || declarationScan.indexOf('\0')>=0 || declarationScan.contains("<!DOCTYPE") || declarationScan.contains("<!ENTITY")) throw new IOException();
-            DocumentBuilderFactory factory=DocumentBuilderFactory.newInstance(); factory.setNamespaceAware(true); factory.setExpandEntityReferences(false);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities",false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities",false);
-            javax.xml.parsers.DocumentBuilder parser=factory.newDocumentBuilder();
-            parser.setEntityResolver((publicId,systemId)-> { throw new org.xml.sax.SAXException("External entities disabled"); });
-            parser.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() { @Override public void fatalError(org.xml.sax.SAXParseException e) throws org.xml.sax.SAXException { throw e; } });
-            Document doc=parser.parse(new ByteArrayInputStream(data));
+            Document doc=parsePropertiesXml(bytes.toByteArray());
             NodeList responses=doc.getElementsByTagNameNS("DAV:","response"); List<RemoteFiles.Entry> result=new ArrayList<>();
             if (responses.getLength()>20000) throw new IOException();
             for (int i=0;i<responses.getLength();i++) {
@@ -87,6 +77,25 @@ final class WebDavBackend implements RemoteFiles.Backend {
             }
             return result;
         }
+    }
+    /** A strict UTF-8 character boundary makes DTD rejection independent of DOM feature support. */
+    static Document parsePropertiesXml(byte[] data) throws Exception {
+        String xml=java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .decode(java.nio.ByteBuffer.wrap(data)).toString();
+        // XML declaration keywords cannot be escaped or case-folded. Reject before DOM sees them.
+        // NUL also rejects UTF-16/32 input; a Reader prevents encoding declarations changing decoding.
+        if (xml.indexOf('\0')>=0 || xml.contains("<!DOCTYPE") || xml.contains("<!ENTITY")) throw new IOException();
+        if (xml.startsWith("\ufeff")) xml=xml.substring(1);
+        DocumentBuilderFactory factory=DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true); factory.setExpandEntityReferences(false);
+        javax.xml.parsers.DocumentBuilder parser=factory.newDocumentBuilder();
+        parser.setEntityResolver((publicId,systemId)-> { throw new org.xml.sax.SAXException("External entities disabled"); });
+        parser.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
+            @Override public void fatalError(org.xml.sax.SAXParseException e) throws org.xml.sax.SAXException { throw e; }
+        });
+        return parser.parse(new org.xml.sax.InputSource(new StringReader(xml)));
     }
     private static String text(Element e,String local) { NodeList n=e.getElementsByTagNameNS("DAV:",local); return n.getLength()==0 ? "" : n.item(0).getTextContent().trim(); }
     @Override public List<RemoteFiles.Entry> list(String path) throws Exception {

@@ -148,9 +148,15 @@ public final class RemoteFiles implements Closeable {
             }
             result.append(codeSymbol(source.getClass().getName()));
             StackTraceElement[] frames = source.getStackTrace();
-            for (int i = 0; i < Math.min(frames.length, 4); i++) {
+            int[] callers = new int[3];
+            for (int i = 0; i < frames.length; i++) {
                 StackTraceElement frame = frames[i];
-                result.append('@').append(codeSymbol(frame.getClassName())).append('.')
+                String cls = frame.getClassName();
+                int group = cls.startsWith("com.termux.") ? 0 : cls.startsWith("org.apache.commons.net.") ? 1
+                    : (cls.startsWith("com.android.org.conscrypt.") || cls.startsWith("org.conscrypt.")) ? 2 : -1;
+                // Reserve slots per layer so deep TLS frames cannot displace the protocol/app caller.
+                if (i >= 4 && (group < 0 || callers[group]++ >= 2)) continue;
+                result.append(" at ").append(codeSymbol(cls)).append('.')
                     .append(codeSymbol(frame.getMethodName())).append(':').append(frame.getLineNumber());
             }
         }

@@ -323,6 +323,27 @@ public final class RemoteRoundTripChecks {
         } finally { executor.shutdownNow(); stalledDav.stop(0); }
         System.out.println("PASS active SSH/HTTP cancellation and stalled SSH timeout");
     }
+    private static void xmlSecurity() throws Exception {
+        String valid="<?xml version=\"1.0\" encoding=\"UTF-8\"?><d:multistatus xmlns:d=\"DAV:\"><d:response>你好 &amp; safe</d:response></d:multistatus>";
+        check(WebDavBackend.parsePropertiesXml(valid.getBytes(StandardCharsets.UTF_8)).getDocumentElement().getNamespaceURI().equals("DAV:"), "portable namespace-aware UTF8 DOM");
+        check(WebDavBackend.parsePropertiesXml(("\ufeff"+valid).getBytes(StandardCharsets.UTF_8)).getDocumentElement()!=null,"UTF8 BOM accepted");
+        String[] attacks={"<!DOCTYPE x SYSTEM 'http://127.0.0.1:1/private'><x/>",
+            "<!DOCTYPE x [<!ENTITY secret SYSTEM 'file:///private'>]><x>&secret;</x>",
+            "<!DOCTYPE x [<!ENTITY % p SYSTEM 'http://127.0.0.1:1/private'>%p;]><x/>",
+            "<!DOCTYPE x [<!ENTITY a '123'><!ENTITY b '&a;&a;'>]><x>&b;</x>",
+            "<!ENTITY secret SYSTEM 'file:///private'><x/>", "<x>&undeclared;</x>"};
+        for (String attack:attacks) {
+            try { WebDavBackend.parsePropertiesXml(attack.getBytes(StandardCharsets.UTF_8)); throw new AssertionError("unsafe XML accepted"); }
+            catch (IOException | org.xml.sax.SAXException expected) { checks++; }
+            for (String encoding:new String[]{"UTF-16LE","UTF-16BE","UTF-32LE","UTF-32BE","IBM037"}) {
+                try { WebDavBackend.parsePropertiesXml(attack.getBytes(encoding)); throw new AssertionError("non-UTF8 unsafe XML accepted"); }
+                catch (IOException | org.xml.sax.SAXException expected) { checks++; }
+            }
+        }
+        try { WebDavBackend.parsePropertiesXml(new byte[]{'<','x','>',(byte)0xc0,(byte)0xbc,'/','x','>'}); throw new AssertionError("malformed UTF8 accepted"); }
+        catch (java.nio.charset.CharacterCodingException expected) { checks++; }
+        System.out.println("PASS portable XML UTF8 parsing and fail-closed DTD/entity/encoding checks");
+    }
     private static void diagnostics() throws Exception {
         String secret = "https://user:local-fixture-only@private.invalid/path?token=secret";
         IOException leaf = new IOException(secret);
@@ -330,7 +351,7 @@ public final class RemoteRoundTripChecks {
         IOException outer = new IOException(secret, leaf);
         outer.setStackTrace(new StackTraceElement[]{new StackTraceElement("org.example.Client$Worker", "<init>", secret, 12)});
         String expected = RemoteFiles.safeDiagnostic(outer);
-        check(expected.contains("java.io.IOException@org.example.Transport.send:73"), "nested cause code frame");
+        check(expected.contains("java.io.IOException at org.example.Transport.send:73"), "nested cause code frame");
         check(expected.contains("org.example.Client_Worker._init_:12"), "code symbols fit host report filter");
         check(!expected.contains(secret) && !expected.contains("local-fixture-only") && !expected.contains("private.invalid"), "diagnostic omits messages and file names");
         check(expected.matches("[A-Za-z0-9_./:@,\\[\\] -]*"), "diagnostic accepted by host instrumentation filter");
@@ -368,6 +389,16 @@ public final class RemoteRoundTripChecks {
                 }
             }
         }
+        IOException deep = new IOException(secret);
+        StackTraceElement[] deepFrames = new StackTraceElement[12];
+        Arrays.fill(deepFrames, new StackTraceElement("java.net.SocketInputStream", "read", secret, 3));
+        for (int i=4;i<10;i++) deepFrames[i]=new StackTraceElement("com.android.org.conscrypt.ConscryptEngineSocket", "read", secret, 6);
+        deepFrames[10] = new StackTraceElement("org.apache.commons.net.ftp.FTPSClient", "_openDataConnection_", secret, 4);
+        deepFrames[11] = new StackTraceElement("com.termux.app.files.remote.FtpBackend", "write", secret, 5);
+        deep.setStackTrace(deepFrames);
+        String deepDiagnostic=RemoteFiles.safeDiagnostic(deep);
+        check(deepDiagnostic.contains("FTPSClient._openDataConnection_:4") && deepDiagnostic.contains("FtpBackend.write:5"), "retain protocol callers beyond socket frames");
+        check(!deepDiagnostic.contains("@"), "frame separators avoid email redaction");
         leaf.initCause(outer);
         check(RemoteFiles.safeDiagnostic(outer).length() < 3501, "cyclic causes bounded");
         IOException invalid = new IOException(secret);
@@ -377,6 +408,8 @@ public final class RemoteRoundTripChecks {
     }
     public static void main(String[] args) throws Exception {
         diagnostics();
+        xmlSecurity();
+        if (args.length==1 && args[0].equals("diagnostics-only")) { System.out.println("PASS "+checks+" focused assertions"); return; }
         if (args.length==2 && args[0].equals("reject-ftps")) {
             denied(()->RemoteFiles.connect(connection(RemoteFiles.Protocol.FTPS,Integer.parseInt(args[1]),""),new RemoteFiles.Cancellation()),"untrusted certificate rejected");
             System.out.println("PASS FTPS rejects untrusted certificate"); return;
