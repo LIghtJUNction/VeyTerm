@@ -1,0 +1,2 @@
+# UUencode spaces are data; preserve the hash-checked upstream bytes.
+*.uu -whitespace

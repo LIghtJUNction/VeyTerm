@@ -11,12 +11,10 @@ Add these in the integrating checkout (the worker has NOT changed Gradle):
 implementation 'net.lingala.zip4j:zip4j:2.11.6'
 implementation 'org.apache.commons:commons-compress:1.28.0'
 implementation 'org.tukaani:xz:1.12'
-implementation 'com.github.junrar:junrar:8.1.2'
 // Pin the actual transitive versions exercised by the standalone JVM tests:
 implementation 'commons-io:commons-io:2.22.0'
 implementation 'org.apache.commons:commons-lang3:3.21.0'
 implementation 'commons-codec:commons-codec:1.19.0'
-implementation 'org.slf4j:slf4j-api:2.0.17'
 // Existing app test dependency, also used by the standalone runner:
 testImplementation 'junit:junit:4.13.2'
 ```
@@ -26,21 +24,18 @@ testImplementation 'junit:junit:4.13.2'
 | zip4j 2.11.6 | Apache-2.0 | `ZipFile(File,char[])`, `isValidZipFile`, `isSplitArchive`, `getFileHeaders`, `getInputStream(FileHeader)`, `FileHeader` metadata/external Unix attributes; `io.outputstream.ZipOutputStream(OutputStream,char[])`, `putNextEntry(ZipParameters)`, `closeEntry`; `EncryptionMethod.AES/ZIP_STANDARD`, `AesKeyStrength.KEY_STRENGTH_256` |
 | Commons Compress 1.28.0 | Apache-2.0 | `TarArchiveInputStream`, `TarArchiveOutputStream` with POSIX long-name/big-number modes, `TarArchiveEntry` header checksum/type inspection; gzip input builder/metadata and output with filename; `SevenZFile.builder().setFile().setPassword().setMaxMemoryLimitKiB().get()`, `getNextEntry`, `read`; `SevenZOutputFile(File[,char[]])`, `SevenZArchiveEntry`, LZMA2 methods and Unix/Windows attributes |
 | XZ for Java 1.12 | 0BSD | `XZInputStream(InputStream,int)` with memory limit; `XZOutputStream(OutputStream,LZMA2Options)`, preset 1; same options passed to 7z LZMA2 writer |
-| junrar 8.1.2 | UnRAR license (additional restriction; not Apache/MIT) | `ArchiveOptions.builder().password(char[]).maxDictionarySize(long).build()`, `Archive(File,ArchiveOptions)`, `hasBrokenHeaders`, `getHeaderFailures`, `getFileHeaders`, synchronous `extractFile(FileHeader,OutputStream)`; RAR4/RAR5 file mode/redirection/split checks |
 | Commons IO 2.22.0 | Apache-2.0 | Transitive stream builders/utility code used by Commons Compress |
 | Commons Lang 3.21.0 | Apache-2.0 | Transitive utilities used by Commons Compress |
 | Commons Codec 1.19.0 | Apache-2.0 | Commons Compress declared transitive dependency; included in tested runtime classpath |
-| SLF4J API 2.0.17 | MIT | junrar logging dependency. No logging provider added; tests print the expected no-provider warning |
 | JUnit 4.13.2 / Hamcrest Core 1.3 | EPL-1.0 / BSD-3-Clause | JVM test execution/assertions only |
 
 Upstream references: [zip4j](https://github.com/srikanth-lingala/zip4j),
 [Commons Compress APIs](https://commons.apache.org/proper/commons-compress/apidocs/),
 [XZ 1.12 license](https://github.com/tukaani-project/xz-java/blob/v1.12/COPYING),
-[junrar 8.1.2 license](https://github.com/junrar/junrar/blob/v8.1.2/LICENSE).
-The UnRAR license permits handling RAR archives but restricts recreating its proprietary
-compression algorithm. Preserve its license and notices; distribution alongside this
-repository's GPLv3-only code needs the parent's licensing decision. This document does
-not assert license compatibility. No RAR compression algorithm is implemented here.
+[RAR follow-up](file-manager-rar-dependencies.md).
+RAR now uses the pinned BSD/CC0/public-domain libarchive native reader instead of
+junrar. Include its sub-Android.mk and native keep rules as described in the follow-up;
+remove junrar/its archive-only SLF4J dependency from the integrating build.
 
 ## Public invocation
 
@@ -101,7 +96,7 @@ ArchiveTools.delete(archive, new HashSet<>(Arrays.asList("new-folder")), options
 | TAR.XZ | Yes, XZ checks included | Yes | Yes |
 | GZIP | One logical payload; concatenated gzip members decode as one stream | One basename/file only | Replace/rename sole member; adding a second or deleting the last fails |
 | 7z | Yes; Commons Compress supported methods and AES reading | LZMA2, optionally AES-256 | Yes; streamed rewrite, including encrypted content |
-| RAR | Read-only using junrar; no asynchronous pipe/thread extractor | Explicit error | Explicit error |
+| RAR | Read-only via libarchive JNI; see RAR follow-up for RAR4/RAR5 capabilities | Explicit error | Explicit error |
 
 Detection reads content signatures, probing at most 512 decompressed bytes for tar
 inside gzip/xz. APK is a ZIP container here, not an APK signing implementation.
@@ -158,8 +153,9 @@ ZIP/TAR/RAR names, archive/source/destination symlinks, 7z hostile paths/Unix sy
 members and extraction over its own source archive.
 
 Unverified integration: Android packaging/D8/R8, API 21 runtime, SAF staging, physical
-devices, compressed/solid/encrypted RAR corpora and RAR5 corpora. Java 8 bytecode compilation
-alone does not establish Android API availability: Commons Compress and junrar reference
+devices. The RAR follow-up adds host corpus verification and four-ABI native compilation;
+encrypted RAR and RAR4 solid remain explicitly unsupported. Java 8 bytecode compilation
+alone does not establish Android API availability: Commons Compress references
 `java.nio.file`, `java.nio.file.attribute.FileTime`, `java.time` and Java 8 library APIs.
 The parent must verify appropriate core-library/NIO desugaring or guard formats on older
 Android releases. JVM tests do not establish Android acceptance. No Gradle or Manifest

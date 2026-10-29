@@ -1,9 +1,5 @@
 package com.termux.app.files.archive;
 
-import com.github.junrar.Archive;
-import com.github.junrar.ArchiveOptions;
-import com.github.junrar.exception.RarException;
-import com.github.junrar.rarfile.HostSystem;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.io.outputstream.ZipOutputStream;
 import net.lingala.zip4j.model.FileHeader;
@@ -356,25 +352,17 @@ public final class ArchiveTools {
                 }
             }
         } else if (format == Format.RAR) {
-            ArchiveOptions rarOptions = ArchiveOptions.builder().password(o.password)
-                .maxDictionarySize(o.maxMemoryKiB * 1024L).build();
-            try (Archive rar = new Archive(file, rarOptions)) {
-                if (rar.hasBrokenHeaders()) throw new IOException("RAR contains broken headers: " + rar.getHeaderFailures());
-                for (com.github.junrar.rarfile.FileHeader h : rar.getFileHeaders()) {
-                    if (h.isSplitAfter() || h.isSplitBefore()) throw new IOException("Multi-volume RAR is unsupported");
-                    if (h.getRedirection() != null) throw new IOException("RAR link/redirection member rejected");
-                    if (h.getHostOS() == HostSystem.unix || (h.isRar5Family() && h.getRar5HostOsValue() == 1))
-                        rejectMode(h.getFileAttr(), h.getFileName());
-                    if ((h.getFileAttr() & 0x400) != 0 && h.getHostOS() == HostSystem.win32)
-                        throw new IOException("RAR reparse member rejected");
-                    Entry e = new Entry(h.getFileName(), h.isDirectory(), h.isUnpSizeUnknown() ? -1 : h.getFullUnpackSize(),
-                        h.getMTime() == null ? 0 : h.getMTime().getTime(), h.isEncrypted());
+            try (NativeRar rar = new NativeRar(file, o.maxMemoryKiB, j::check)) {
+                NativeRar.Member h;
+                while ((h = rar.next()) != null) {
+                    if (h.link || h.special) throw new IOException("RAR link/special member rejected: " + h.name);
+                    Entry e = new Entry(h.name, h.directory, h.size, h.modified, h.encrypted);
                     checked.visit(e, out -> {
-                        try { if (!h.isDirectory()) rar.extractFile(h, out); }
-                        catch (RarException ex) { throw new IOException("RAR extraction/integrity failure", ex); }
+                        if (e.encrypted) throw new IOException("Encrypted RAR data is unsupported by libarchive");
+                        if (!e.directory) rar.copy(out);
                     });
                 }
-            } catch (RarException ex) { throw new IOException("RAR open/integrity failure", ex); }
+            }
         } else {
             try (InputStream raw = new BufferedInputStream(new FileInputStream(file));
                  InputStream decoded = decode(raw, format, o)) {

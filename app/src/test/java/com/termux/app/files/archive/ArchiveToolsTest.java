@@ -343,7 +343,7 @@ public class ArchiveToolsTest {
         return f;
     }
     /** Tiny in-process RAR4 STORE fixture, with genuine header/payload CRCs; no binary fixture download. */
-    private byte[] rar4(String name, String content) throws IOException {
+    static byte[] rar4(String name, String content) throws IOException {
         byte[] n = name.getBytes(StandardCharsets.US_ASCII), data = content.getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(); out.write(new byte[]{'R','a','r','!',0x1a,7,0});
         ByteBuffer main = ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN);
@@ -359,7 +359,7 @@ public class ArchiveToolsTest {
         end.putShort((short)0).put((byte)0x7b).putShort((short)0x4000).putShort((short)7); out.write(headerCrc(end.array()));
         return out.toByteArray();
     }
-    private byte[] headerCrc(byte[] bytes) {
+    private static byte[] headerCrc(byte[] bytes) {
         CRC32 crc = new CRC32(); crc.update(bytes, 2, bytes.length - 2);
         ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putShort((short)crc.getValue()); return bytes;
     }
