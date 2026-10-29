@@ -36,6 +36,8 @@ public final class DecompiledJavaActivity extends Activity {
     private volatile boolean destroyed;
     private boolean busy, viewingSource;
     private File input;
+    private static final String EXTRA_OUTPUT_DIRECTORY = "file_output_directory";
+    private String outputDirectory;
     // session is owned only by the worker; source/results are immutable result objects.
     private DecompilerSession session;
     private DecompilerSession.Source source;
@@ -68,7 +70,13 @@ public final class DecompiledJavaActivity extends Activity {
         super.onCreate(state);
         setResult(RESULT_CANCELED, getIntent());
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        String path = getIntent().getStringExtra(EXTRA_FILE_PATH);
+        String path = state == null ? getIntent().getStringExtra(EXTRA_FILE_PATH)
+            : state.getString("dec_input_path", getIntent().getStringExtra(EXTRA_FILE_PATH));
+        outputDirectory = state != null && state.containsKey(EXTRA_OUTPUT_DIRECTORY)
+            ? state.getString(EXTRA_OUTPUT_DIRECTORY) : getIntent().getStringExtra(EXTRA_OUTPUT_DIRECTORY);
+        if (path != null) getIntent().putExtra(EXTRA_FILE_PATH, path);
+        if (outputDirectory == null) getIntent().removeExtra(EXTRA_OUTPUT_DIRECTORY);
+        else getIntent().putExtra(EXTRA_OUTPUT_DIRECTORY, outputDirectory);
         if (path == null || path.isEmpty()) { Toast.makeText(this, "Missing local file_path", Toast.LENGTH_LONG).show(); finish(); return; }
         input = new File(path);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
@@ -223,6 +231,27 @@ public final class DecompiledJavaActivity extends Activity {
         }, value -> { if (!previousPages.isEmpty()) previousPages.remove(previousPages.size() - 1); showPage(value); });
     }
 
+    private static File defaultOutput(File original, String directory) throws IOException {
+        if (directory == null) return original;
+        File parent = new File(directory);
+        if (directory.isEmpty() || !parent.isAbsolute()) throw new IOException("Output directory must be an absolute local path: " + directory);
+        return new File(parent, original.getName());
+    }
+
+    private static void prepareOutput(File output, String directory) throws IOException {
+        if (!output.isAbsolute()) throw new IOException("Enter an absolute local output path");
+        File parent = output.getParentFile();
+        if (directory != null && parent != null && parent.getCanonicalFile().equals(new File(directory).getCanonicalFile())) {
+            if (!parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
+                throw new IOException("Cannot create output directory: " + parent);
+        }
+        if (parent == null || !parent.isDirectory() || !parent.canWrite())
+            throw new IOException("Output directory is not writable: " + parent);
+        // The session also reserves the final file atomically with CREATE_NEW.
+        if (java.nio.file.Files.exists(output.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Output already exists: " + output);
+    }
+
     private void export(int kind) {
         if (kind != 2 && source == null) { status.setText("Open a class first"); return; }
         final String selection;
@@ -236,15 +265,18 @@ public final class DecompiledJavaActivity extends Activity {
         File parent = getExternalFilesDir(null); if (parent == null) parent = getFilesDir();
         String name = kind == 2 ? input.getName() + "-sources.zip" :
             source.className.substring(source.className.lastIndexOf('.') + 1) + (kind == 1 ? "-selection.txt" : ".java");
-        destination.setText(new File(parent, name).getAbsolutePath()); destination.setSelectAllOnFocus(true);
+        try { destination.setText(defaultOutput(new File(parent, name), outputDirectory).getAbsolutePath()); }
+        catch (IOException e) { error(e); return; }
+        destination.setSelectAllOnFocus(true);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(kind == 2 ? "Export all Java sources" : kind == 1 ? "Export selected text" : "Export complete class")
-            .setMessage("Choose a new absolute path in an existing app-writable directory. Existing files are refused. The original APK/DEX stays unchanged.")
+            .setMessage("Choose a new absolute local path. The supplied default directory is created if needed; other parent directories must exist. Existing files are refused. The original APK/DEX stays unchanged.")
             .setView(destination).setNegativeButton("Cancel", null).setPositiveButton("Export", null).create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            File output = new File(destination.getText().toString());
+            File output = new File(destination.getText().toString().trim());
             dialog.dismiss();
             background("Exporting complete output…", job -> {
                 requireSession();
+                prepareOutput(output, outputDirectory);
                 if (kind == 2) return session.exportAll(output, job, (done, total) -> {
                     if (done == 1 || done % 10 == 0 || done == total) runOnUiThread(() -> {
                         if (!destroyed && cancellation == job && !job.cancelled.get()) status.setText("Exporting " + done + " / " + total + " classes…");
@@ -318,10 +350,17 @@ public final class DecompiledJavaActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
+        if (input != null) state.putString("dec_input_path", input.getAbsolutePath());
+        state.putString(EXTRA_OUTPUT_DIRECTORY, outputDirectory);
         state.putString("dec_query", query == null ? "" : query.getText().toString());
         state.putInt("dec_mode", mode == null ? 0 : mode.getSelectedItemPosition());
         state.putString("dec_search_query", searchQuery); state.putInt("dec_search_mode", searchMode.ordinal()); state.putInt("dec_offset", searchOffset);
         if (viewingSource && selectedClass != null) { state.putString("dec_class", selectedClass); state.putLong("dec_source_offset", page == null ? 0 : page.start); }
+    }
+    @Override public void finish() {
+        // Exporting creates separate files; it never edits the staged input lease.
+        setResult(RESULT_CANCELED, getIntent());
+        super.finish();
     }
     @Override protected void onDestroy() {
         destroyed = true; cancel();

@@ -22,6 +22,8 @@ public final class ApkToolsActivity extends Activity {
     private boolean homeScreen;
     private boolean busy, destroyed, dirty, modified;
     private File apk, scratch, importedStore;
+    private static final String EXTRA_OUTPUT_DIRECTORY = "file_output_directory";
+    private String outputDirectory, rawKind;
     private LinearLayout root, body;
     private TextView heading, status;
     private EditText editor;
@@ -55,6 +57,12 @@ public final class ApkToolsActivity extends Activity {
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
         String path = state == null ? getIntent().getStringExtra(ApkTools.EXTRA_FILE_PATH) : state.getString("apk_path");
         if (path != null) apk = new File(path);
+        outputDirectory = state != null && state.containsKey(EXTRA_OUTPUT_DIRECTORY)
+            ? state.getString(EXTRA_OUTPUT_DIRECTORY) : getIntent().getStringExtra(EXTRA_OUTPUT_DIRECTORY);
+        // Keep the returned Intent's source/lease metadata and restored routing together.
+        if (path != null) getIntent().putExtra(ApkTools.EXTRA_FILE_PATH, path);
+        if (outputDirectory == null) getIntent().removeExtra(EXTRA_OUTPUT_DIRECTORY);
+        else getIntent().putExtra(EXTRA_OUTPUT_DIRECTORY, outputDirectory);
         modified = state != null && state.getBoolean("apk_modified", false);
         setResult(modified ? RESULT_OK : RESULT_CANCELED, getIntent());
         scratch = new File(getCacheDir(), "apk-session-" + UUID.randomUUID());
@@ -70,13 +78,16 @@ public final class ApkToolsActivity extends Activity {
     }
 
     private void loadWorkspace() {
+        rawKind = null;
         home();
-        if (apk != null && !packageSet()) work("Checking opened APK and saved draft", () -> {
+        if (apk != null && !packageSet()) work("Checking opened file and saved draft", () -> {
+            rawKind = sourceKind(apk);
             workspaceFingerprint = ApkZip.fingerprint(apk);
             draftLoadError = null;
             try { return ApkDrafts.load(draftsDirectory, apk); }
             catch (Exception e) { draftLoadError = e.getMessage(); return null; }
         }, draft -> {
+            home();
             if (draftLoadError != null) {
                 new AlertDialog.Builder(this).setTitle("Saved draft could not be read").setMessage(draftLoadError)
                     .setPositiveButton("Discard draft", (d, which) -> discardDraft())
@@ -97,6 +108,7 @@ public final class ApkToolsActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out) {
         if (apk != null) out.putString("apk_path", apk.getAbsolutePath());
         out.putBoolean("apk_modified", modified);
+        out.putString(EXTRA_OUTPUT_DIRECTORY, outputDirectory);
         super.onSaveInstanceState(out);
     }
 
@@ -105,10 +117,11 @@ public final class ApkToolsActivity extends Activity {
     }
 
     private void home() {
-        page("APK tools"); homeScreen = true; status.setText(apk == null ? "No APK selected" : apk.getAbsolutePath());
+        page(rawKind == null ? "APK tools" : rawKind + " tools"); homeScreen = true; status.setText(apk == null ? "No APK selected" : apk.getAbsolutePath());
         ScrollView scroll = new ScrollView(this); LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL); scroll.addView(actions); body.addView(scroll);
-        if (apk != null && !packageSet()) {
+        if (rawKind != null) rawActions(actions);
+        if (apk != null && !packageSet() && rawKind == null) {
             button(actions, "APK information, permissions and components", () -> work("Reading manifest", () -> ApkTools.metadata(this, apk), text -> text("APK information", text)));
             button(actions, "Verify signatures and certificates", () -> work("Verifying signatures", () -> ApkSignatures.report(apk), text -> text("Signature verification", text)));
             button(actions, "Browse ZIP / DEX / resources", this::zip);
@@ -123,7 +136,8 @@ public final class ApkToolsActivity extends Activity {
         button(actions, "Continue Android install confirmation", () -> continueInstall(true));
         button(actions, "Extract installed app + all splits", this::installed);
         if (apk == null) button(actions, "Open a local APK", () -> path("APK path", "", file -> {
-            apk = file; getIntent().putExtra(ApkTools.EXTRA_FILE_PATH, file.getAbsolutePath()); loadWorkspace();
+            apk = file; getIntent().putExtra(ApkTools.EXTRA_FILE_PATH, file.getAbsolutePath());
+            outputDirectory = null; getIntent().removeExtra(EXTRA_OUTPUT_DIRECTORY); loadWorkspace();
         }));
         button(actions, "Open-source licenses", () -> work("Reading bundled licenses", () -> {
             int id = getResources().getIdentifier("apk_third_party_notices", "raw", getPackageName());
@@ -133,6 +147,48 @@ public final class ApkToolsActivity extends Activity {
             }
         }, value -> text("APK tools: open-source licenses", value)));
         button(actions, "Close", this::finish);
+    }
+
+    private static String sourceKind(File file) throws IOException {
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".dex")) return "DEX";
+        if (name.endsWith(".arsc")) return "ARSC";
+        try (InputStream in = new FileInputStream(file)) {
+            int a = in.read(), b = in.read(), c = in.read(), d = in.read();
+            if (a == 3 && b == 0 && c == 8 && d == 0) return "AXML";
+            if (a == 'd' && b == 'e' && c == 'x' && d == '\n') return "DEX";
+        }
+        return null;
+    }
+
+    private byte[] rawBytes() throws IOException {
+        ApkZip.requireFingerprint(apk, workspaceFingerprint);
+        byte[] bytes = readRaw(apk);
+        ApkZip.requireFingerprint(apk, workspaceFingerprint);
+        return bytes;
+    }
+
+    private static byte[] readRaw(File input) throws IOException {
+        try (InputStream in = new FileInputStream(input); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ApkZip.copy(in, out, ApkFormats.EDIT_LIMIT); return out.toByteArray();
+        }
+    }
+
+    private void rawActions(LinearLayout actions) {
+        if (rawKind.equals("DEX")) {
+            button(actions, "DEX classes, members, strings and Smali tools", () ->
+                work("Reading standalone DEX", this::rawBytes, bytes -> dexMenu(apk.getName(), bytes)));
+        } else if (rawKind.equals("ARSC")) {
+            button(actions, "Edit resource table as typed JSON", () -> work("Decoding standalone resources.arsc", () ->
+                ApkFormats.decodeArsc(rawBytes()), json -> edit("ARSC typed JSON", json, apk.getName(),
+                    ApkFormats::compileArsc, this::home, "ARSC", "")));
+        } else {
+            button(actions, "Read decoded binary XML", () -> work("Decoding standalone binary XML", () ->
+                ApkFormats.xmlPreview(rawBytes()), xml -> text(apk.getName(), xml)));
+            button(actions, "Edit binary XML as typed JSON", () -> work("Decoding standalone binary XML", () ->
+                ApkFormats.decodeAxml(rawBytes()), json -> edit("AXML typed JSON", json, apk.getName(),
+                    ApkFormats::compileAxml, this::home, "AXML", "")));
+        }
     }
 
     private void button(LinearLayout target, String title, Runnable click) {
@@ -191,7 +247,7 @@ public final class ApkToolsActivity extends Activity {
         if (content.length() > 2 * 1024 * 1024) {
             error(new IOException("Native text display limit is 2 MiB. Extract the entry to inspect a larger file.")); return;
         }
-        page(title); button(body, "Back to APK tools", this::home);
+        page(title); button(body, rawKind == null ? "Back to APK tools" : "Back to " + rawKind + " tools", this::home);
         ScrollView scroll = new ScrollView(this); TextView view = new TextView(this);
         view.setTextIsSelectable(true); view.setTypeface(Typeface.MONOSPACE); view.setText(content);
         scroll.addView(view); body.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -221,7 +277,7 @@ public final class ApkToolsActivity extends Activity {
                 if (name.endsWith("/")) return;
                 new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{"Open DEX / binary XML / resources", "Extract entry", "Replace with local file", "Delete entry"}, (dialog, index) -> {
                     if (index == 0) inspect(name);
-                    else if (index == 1) path("Extract entry to new file", new File(apk.getParentFile(), new File(name).getName()).getAbsolutePath(),
+                    else if (index == 1) newOutputPath("Extract entry to new file", new File(apk.getParentFile(), new File(name).getName()),
                         output -> work("Extracting entry", () -> { ApkZip.extract(apk, name, output); return output; }, file -> text("Extracted", file.getAbsolutePath())));
                     else if (index == 2) path("Replacement local file", "", replacement -> outputPath(output ->
                         work("Writing unsigned APK", () -> { ApkZip.rewrite(apk, output, Collections.singletonMap(name, replacement), Collections.emptySet()); return output; }, this::outputReady)));
@@ -251,14 +307,19 @@ public final class ApkToolsActivity extends Activity {
     }
 
     private void dexMenu(String name, byte[] bytes) {
+        Runnable back = rawKind == null ? this::zip : this::home;
         new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{"Browse classes and members / edit Smali", "Browse string pool", "Export all classes as Smali", "Assemble Smali directory and replace DEX"}, (dialog, index) -> {
             if (index == 0) work("Indexing DEX classes", () -> ApkFormats.classes(bytes), values ->
-                list(name + " classes", values, type -> classMenu(name, bytes, type), this::zip));
+                list(name + " classes", values, type -> classMenu(name, bytes, type), back));
             else if (index == 1) work("Reading DEX strings", () -> ApkFormats.strings(bytes), values ->
-                list(name + " strings", values, value -> new AlertDialog.Builder(this).setMessage(value).setPositiveButton("OK", null).show(), this::zip));
-            else if (index == 2) path("New Smali directory", apk.getAbsolutePath() + "-" + name + "-smali", output ->
+                list(name + " strings", values, value -> new AlertDialog.Builder(this).setMessage(value).setPositiveButton("OK", null).show(), back));
+            else if (index == 2) newOutputPath("New Smali directory", new File(apk.getAbsolutePath() + (rawKind == null ? "-" + name : "") + "-smali"), output ->
                 work("Disassembling DEX", () -> { ApkFormats.disassemble(bytes, output); return output; }, file -> text("Smali exported", file.getAbsolutePath())));
-            else path("Smali source directory", "", input -> outputPath(output -> work("Assembling DEX and writing unsigned APK", () -> {
+            else path("Smali source directory", "", input -> outputPath(output -> work(rawKind == null ? "Assembling DEX and writing unsigned APK" : "Assembling standalone DEX", () -> {
+                ApkZip.requireFingerprint(apk, workspaceFingerprint);
+                if (rawKind != null) {
+                    ApkFormats.assemble(input, output, ApkFormats.dex(bytes).getOpcodes().api); return output;
+                }
                 File dex = new File(scratch, "assembled-" + UUID.randomUUID() + ".dex");
                 try {
                     ApkFormats.assemble(input, dex, ApkFormats.dex(bytes).getOpcodes().api);
@@ -273,7 +334,7 @@ public final class ApkToolsActivity extends Activity {
             if (which == 0) work("Reading members", () -> ApkFormats.members(bytes, type), members ->
                 list(type + " members", members, member -> new AlertDialog.Builder(this).setMessage(member).setPositiveButton("OK", null).show(), () -> dexMenu(name, bytes)));
             else work("Disassembling class", () -> ApkFormats.smali(bytes, type), source ->
-                edit(type, source, name, value -> ApkFormats.replaceClass(bytes, type, value, scratch), this::zip, "SMALI", type));
+                edit(type, source, name, value -> ApkFormats.replaceClass(bytes, type, value, scratch), rawKind == null ? this::zip : this::home, "SMALI", type));
         }).show();
     }
 
@@ -281,9 +342,9 @@ public final class ApkToolsActivity extends Activity {
         editKind = kind; editEntry = entry; editDescriptor = descriptor;
         if (initial.length() > 2 * 1024 * 1024) { error(new IOException("Native editor limit is 2 MiB text. Export/replace the entry for larger edits.")); return; }
         page(title); editorReturn = back;
-        TextView help = new TextView(this); help.setText("Compile creates a separate unsigned APK. Apply commits it to the opened file. Keep class descriptors/resource IDs consistent."); body.addView(help);
+        TextView help = new TextView(this); help.setText(rawKind == null ? "Compile creates a separate unsigned APK. Apply commits it to the opened file. Keep class descriptors/resource IDs consistent." : "Compile creates a separate " + rawKind + " file. The opened file stays unchanged. Keep class descriptors/resource IDs consistent."); body.addView(help);
         LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL); body.addView(actions);
-        Button save = new Button(this); save.setText("Compile to new APK"); actions.addView(save);
+        Button save = new Button(this); save.setText(rawKind == null ? "Compile to new APK" : "Compile to new " + rawKind); actions.addView(save);
         Button cancel = new Button(this); cancel.setText("Back"); actions.addView(cancel); cancel.setOnClickListener(v -> leaveEditor(back));
         editor = new EditText(this); editor.setTypeface(Typeface.MONOSPACE); editor.setTextSize(13);
         editor.setGravity(Gravity.TOP | Gravity.START); editor.setInputType(android.text.InputType.TYPE_CLASS_TEXT
@@ -314,10 +375,11 @@ public final class ApkToolsActivity extends Activity {
         save.setOnClickListener(v -> {
             if (busy) return;
             final String source = editor.getText().toString();
-            outputPath(output -> work("Compiling binary format and rebuilding unsigned APK", () -> {
+            outputPath(output -> work(rawKind == null ? "Compiling binary format and rebuilding unsigned APK" : "Compiling standalone " + rawKind, () -> {
                 ApkZip.requireFingerprint(apk, workspaceFingerprint);
                 byte[] compiled = compiler.compile(source);
                 ApkZip.requireFingerprint(apk, workspaceFingerprint);
+                if (rawKind != null) { ApkZip.writeNew(output, compiled); return output; }
                 File replacement = File.createTempFile("apk-compiled-", ".bin", scratch);
                 try {
                     try (FileOutputStream out = new FileOutputStream(replacement)) { out.write(compiled); out.getFD().sync(); }
@@ -334,13 +396,61 @@ public final class ApkToolsActivity extends Activity {
             .setPositiveButton("Discard", (dialog, which) -> { dirty = false; discardDraft(); back.run(); }).show();
     }
 
+    // Only explicit staged-source routing changes defaults. Local borrowed files keep theirs.
+    private static File defaultOutput(File original, String directory) throws IOException {
+        if (directory == null) return original;
+        File parent = new File(directory);
+        if (directory.isEmpty() || !parent.isAbsolute()) throw new IOException("Output directory must be an absolute local path: " + directory);
+        return new File(parent, original.getName());
+    }
+
+    private static void prepareOutput(File output, String directory) throws IOException {
+        if (!output.isAbsolute()) throw new IOException("Enter an absolute local output path");
+        File parent = output.getParentFile();
+        if (directory != null && parent != null && parent.getCanonicalFile().equals(new File(directory).getCanonicalFile())) {
+            if (!parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
+                throw new IOException("Cannot create output directory: " + parent);
+        }
+        if (parent == null || !parent.isDirectory() || !parent.canWrite())
+            throw new IOException("Output directory is not writable: " + parent);
+        // Also refuse dangling symlinks; format writers retain their own publish checks.
+        if (java.nio.file.Files.exists(output.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Output already exists: " + output);
+    }
+
+    private void newOutputPath(String title, File original, Result<File> action) {
+        newOutputPath(title, original, outputDirectory, action);
+    }
+
+    private void newOutputPath(String title, File original, String directory, Result<File> action) {
+        try {
+            path(title, defaultOutput(original, directory).getAbsolutePath(), output -> {
+                prepareOutput(output, directory); action.accept(output);
+            });
+        } catch (Exception e) { error(e); }
+    }
+
+    private static File editedOutput(File input, String kind) {
+        if (kind == null) return new File(input.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-edited.apk");
+        String name = input.getName(); int dot = name.lastIndexOf('.');
+        String edited = dot > 0 ? name.substring(0, dot) + "-edited" + name.substring(dot)
+            : name + "-edited." + kind.toLowerCase(Locale.ROOT);
+        return new File(input.getParentFile(), edited);
+    }
+
     private void outputPath(Result<File> action) {
-        path("New output APK (must not exist)", apk.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-edited.apk", action);
+        newOutputPath("New output " + (rawKind == null ? "APK" : rawKind) + " (must not exist)", editedOutput(apk, rawKind), action);
     }
 
     private void outputReady(File output) { outputReady(output, false); }
 
     private void outputReady(File output, boolean signed) {
+        if (rawKind != null) {
+            new AlertDialog.Builder(this).setTitle(rawKind + " output written")
+                .setMessage(output.getAbsolutePath() + "\nSeparate output; the opened file is unchanged.")
+                .setPositiveButton("Keep separate output", null).show();
+            return;
+        }
         File idsig = new File(output.getPath() + ".idsig");
         if (signed && idsig.isFile()) {
             new AlertDialog.Builder(this).setTitle("Signed APK + v4 sidecar verified")
@@ -377,7 +487,8 @@ public final class ApkToolsActivity extends Activity {
     private void signWith(ApkSignatures.Identity identity) {
         new AlertDialog.Builder(this).setTitle("Signature schemes")
             .setItems(new String[]{"v1 + v2", "v1 + v2 + v3", "v1 + v2 + v3 and detached v4 .idsig"}, (d, index) ->
-                path("New signed APK (must not exist)", apk.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-signed.apk", output -> {
+                newOutputPath("New signed APK (must not exist)", new File(apk.getAbsolutePath().replaceFirst("(?i)\\.apk$", "") + "-signed.apk"), output -> {
+                    prepareOutput(new File(output.getPath() + ".idsig"), outputDirectory);
                     Runnable sign = () -> work("Signing and verifying requested schemes", () -> {
                         ApkZip.requireFingerprint(apk, workspaceFingerprint);
                         ApkSignatures.sign(apk, output, identity, index >= 1, index == 2); return output;
@@ -445,8 +556,11 @@ public final class ApkToolsActivity extends Activity {
             for (ApkTools.InstalledApp app : apps) { labels.add(app.toString()); lookup.put(app.toString(), app); }
             list("Installed apps (Android package visibility applies)", labels, label -> {
                 ApkTools.InstalledApp app = lookup.get(label);
-                File external = getExternalFilesDir(null); if (external == null) external = getFilesDir();
-                path("New output directory for base + every split", new File(external, app.packageName + "-apks").getAbsolutePath(), output ->
+                File external = apk == null ? new File(getFilesDir(), "home") : getExternalFilesDir(null);
+                if (external == null) external = getFilesDir();
+                // With no input, Home is also a visible default and may need creating.
+                String directory = outputDirectory != null ? outputDirectory : apk == null ? external.getAbsolutePath() : null;
+                newOutputPath("New output directory for base + every split", new File(external, app.packageName + "-apks"), directory, output ->
                     work("Extracting base and " + app.splitCount + " splits", () -> ApkTools.extractInstalled(this, app.packageName, output), files -> {
                         List<String> paths = new ArrayList<>(); for (File f : files) paths.add(f.getAbsolutePath());
                         text("Extracted installed APK set", join(paths) + "\nUse Install APK / APK directory / APKS / XAPK to install this directory.");
@@ -531,7 +645,7 @@ public final class ApkToolsActivity extends Activity {
     private void restoreDraft(ApkDrafts.Draft draft) {
         work("Checking draft fingerprint", () -> {
             if (!draft.matches(apk)) throw new IOException("APK changed; draft restore refused");
-            return draft.kind.equals("SMALI") ? ApkZip.read(apk, draft.entry, ApkFormats.EDIT_LIMIT) : null;
+            return draft.kind.equals("SMALI") ? (rawKind == null ? ApkZip.read(apk, draft.entry, ApkFormats.EDIT_LIMIT) : rawBytes()) : null;
         }, bytes -> {
             SourceCompiler compiler;
             switch (draft.kind) {
@@ -541,7 +655,7 @@ public final class ApkToolsActivity extends Activity {
                 case "SMALI": compiler = source -> ApkFormats.replaceClass(bytes, draft.descriptor, source, scratch); break;
                 default: throw new IOException("Unknown saved editor mode");
             }
-            edit("Recovered " + draft.kind, draft.text, draft.entry, compiler, this::zip, draft.kind, draft.descriptor);
+            edit("Recovered " + draft.kind, draft.text, draft.entry, compiler, rawKind == null ? this::zip : this::home, draft.kind, draft.descriptor);
             dirty = true;
         });
     }
