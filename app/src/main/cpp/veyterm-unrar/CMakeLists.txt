@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026 VeyTerm contributors. See LICENSE.guard.
+cmake_minimum_required(VERSION 3.22)
+project(veyterm_unrar_command LANGUAGES CXX)
+set(UNRAR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/source" CACHE PATH "Prepared full UnRAR source")
+if(NOT EXISTS "${UNRAR_SOURCE_DIR}/.prepared")
+    message(FATAL_ERROR "Run veyterm-unrar/prepare.py explicitly before configuring")
+endif()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/sources.txt" unrar_sources)
+list(TRANSFORM unrar_sources PREPEND "${UNRAR_SOURCE_DIR}/")
+add_executable(veyterm_unrar ${unrar_sources} command_main.cpp)
+set_source_files_properties("${UNRAR_SOURCE_DIR}/rar.cpp" PROPERTIES COMPILE_DEFINITIONS "main=unrar_main")
+target_compile_features(veyterm_unrar PRIVATE cxx_std_11)
+target_compile_definitions(veyterm_unrar PRIVATE UNRAR _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
+# Deliberately no RAR_SMP: one decoder thread per bounded child process.
+target_compile_options(veyterm_unrar PRIVATE -O2 -fPIE -fstack-protector-strong -ffunction-sections -fdata-sections)
+if(ANDROID)
+    target_compile_options(veyterm_unrar PRIVATE "-include${CMAKE_CURRENT_SOURCE_DIR}/android_compat.hpp")
+endif()
+target_link_options(veyterm_unrar PRIVATE -pie -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,-z,max-page-size=16384)
+set_target_properties(veyterm_unrar PROPERTIES OUTPUT_NAME "libveyterm_unrar.so")

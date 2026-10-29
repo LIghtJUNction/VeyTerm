@@ -5,13 +5,16 @@ removes all task downloads/classes/native outputs under ignored build/ on exit.
 Requires Python >= 3.9, JDK >= 9, CMake, C compiler and zlib development files.
 """
 import binascii
+import argparse
 import hashlib
 import sys
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import tempfile
 import urllib.request
+import time
 
 sys.dont_write_bytecode = True
 
@@ -27,7 +30,42 @@ ARTIFACTS = [
 ]
 
 
+def verify_command_limits(executable, fixtures):
+    """Observe kernel-enforced child bounds while its ordinary -p awaits stdin."""
+    import resource
+    archive = fixtures / 'test_read_format_rar5_solid_encrypted_filenames.rar'
+    command = [str(executable), 'lt', '-cfg-', '-c-', '-idcp', '-mdx32m', '-p', '--', str(archive)]
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 5
+        while resource.prlimit(process.pid, resource.RLIMIT_DATA)[0] != 64 * 1024 * 1024:
+            if process.poll() is not None or time.monotonic() > deadline:
+                raise RuntimeError('Native command did not establish the allocation limit')
+            time.sleep(.01)
+        for key, expected in [(resource.RLIMIT_DATA, 64 * 1024 * 1024),
+                              (resource.RLIMIT_AS, 192 * 1024 * 1024),
+                              (resource.RLIMIT_CPU, 120), (resource.RLIMIT_NOFILE, 32),
+                              (resource.RLIMIT_CORE, 0), (resource.RLIMIT_FSIZE, 0)]:
+            if resource.prlimit(process.pid, key) != (expected, expected):
+                raise RuntimeError('Native command kernel limit mismatch')
+        process.communicate(b'password\n', timeout=5)
+        if process.returncode:
+            raise RuntimeError('Bounded native command failed listing')
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate()
+    small = subprocess.run([str(executable), 't', '-cfg-', '-inul', '-mdx512k', '-limm1m', '-p', '--', str(archive)],
+                           input=b'password\n', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+    if small.returncode == 0:
+        raise RuntimeError('Native low-memory invocation unexpectedly succeeded')
+    print('Native command: six kernel limits verified; 1 MiB budget fails closed', flush=True)
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--full-helper', action='store_true', help='Build/test the independent full UnRAR command in a separate JVM')
+    args = parser.parse_args()
     test_dir = Path(__file__).resolve().parent
     root = test_dir.parents[8]
     relative = Path("com/termux/app/files/archive")
@@ -35,6 +73,9 @@ def main():
     build_dir.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="rar-jvm-", dir=build_dir) as work:
         work = Path(work)
+        temporary = work / 'tmp'
+        temporary.mkdir()
+        os.environ['TMPDIR'] = str(temporary)
         for artifact, version, expected in ARTIFACTS:
             name = artifact.rsplit("/", 1)[1]
             url = f"https://repo.maven.apache.org/maven2/{artifact}/{version}/{name}-{version}.jar"
@@ -51,7 +92,7 @@ def main():
         native = work / "native"
         for cmd in (["cmake", "-S", str(adapter), "-B", str(native),
                      "-DCMAKE_BUILD_TYPE=Release", f"-DARCHIVE_SOURCE_DIR={work / 'source'}"],
-                    ["cmake", "--build", str(native), "-j", "4"]):
+                    ["cmake", "--build", str(native), "-j", "1"]):
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             if result.returncode:
                 raise RuntimeError(result.stdout)
@@ -71,19 +112,41 @@ def main():
         classes.mkdir()
         sources = sorted((root / "app/src/main/java" / relative).glob("*.java"))
         sources += sorted(test_dir.glob("*Test.java"))
-        subprocess.run(["javac", "--release", "8", "-Xlint:all,-options", "-cp", str(work / "*"),
+        subprocess.run(["javac", f"-J-Djava.io.tmpdir={temporary}", "--release", "8", "-Xlint:all,-options", "-cp", str(work / "*"),
                         "-d", str(classes), *map(str, sources)], check=True, cwd=root)
-        subprocess.run(["java", "-Xmx192m", "-Xcheck:jni", f"-Djava.library.path={native}",
+        subprocess.run(["java", "-Xmx192m", f"-Djava.io.tmpdir={temporary}", "-Xcheck:jni", f"-Djava.library.path={native}",
                         f"-Dveyterm.rar.fixtures={fixtures}", "-cp", str(work / "*") + ":" + str(classes),
                         "org.junit.runner.JUnitCore", "com.termux.app.files.archive.ArchiveToolsTest",
                         "com.termux.app.files.archive.RarArchiveTest"],
                        check=True, cwd=root)
         empty_native = work / "no-native"
         empty_native.mkdir()
-        subprocess.run(["java", "-Xmx192m", f"-Djava.library.path={empty_native}",
+        subprocess.run(["java", "-Xmx192m", f"-Djava.io.tmpdir={temporary}", f"-Djava.library.path={empty_native}",
                         "-cp", str(work / "*") + ":" + str(classes),
                         "org.junit.runner.JUnitCore", "com.termux.app.files.archive.RarUnavailableTest"],
                        check=True, cwd=root)
+        if args.full_helper:
+            command = root / 'app/src/main/cpp/veyterm-unrar'
+            spec = importlib.util.spec_from_file_location('unrar_prepare', command / 'prepare.py')
+            unrar_prepare = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(unrar_prepare)
+            unrar_prepare.prepare(work / 'unrar-source')
+            helper_build = work / 'unrar-command'
+            for cmd in (["cmake", "-S", str(command), "-B", str(helper_build),
+                         "-DCMAKE_BUILD_TYPE=Release", f"-DUNRAR_SOURCE_DIR={work / 'unrar-source'}"],
+                        ["cmake", "--build", str(helper_build), "-j1"]):
+                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                if result.returncode:
+                    raise RuntimeError(result.stdout)
+            process_fixture = work / 'command-fixture'
+            subprocess.run(['cc', '-O0', str(test_dir / 'command-fixture.c'), '-o', str(process_fixture)], check=True)
+            verify_command_limits(helper_build / 'libveyterm_unrar.so', fixtures)
+            subprocess.run(["java", "-Xmx192m", f"-Djava.io.tmpdir={temporary}", f"-Djava.library.path={empty_native}",
+                            f"-Dveyterm.rar.fixtures={fixtures}",
+                            f"-Dveyterm.rar.command={helper_build / 'libveyterm_unrar.so'}",
+                            f"-Dveyterm.rar.commandFixture={process_fixture}",
+                            "-cp", str(work / "*") + ":" + str(classes), "org.junit.runner.JUnitCore",
+                            "com.termux.app.files.archive.FullRarTest"], check=True, cwd=root)
 
 
 

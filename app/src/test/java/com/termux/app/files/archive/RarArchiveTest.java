@@ -306,7 +306,7 @@ public class RarArchiveTest {
     private static byte[] rar5(String name, byte[] data, int mode, int mainFlags, byte[] extra, boolean zeroCrc) throws IOException {
         return rar5(name, data, mode, mainFlags, extra, zeroCrc, 0);
     }
-    private static byte[] rar5(String name, byte[] data, int mode, int mainFlags, byte[] extra, boolean zeroCrc, int dictionaryExponent) throws IOException {
+    static byte[] rar5(String name, byte[] data, int mode, int mainFlags, byte[] extra, boolean zeroCrc, int dictionaryExponent) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream(); out.write(new byte[]{'R','a','r','!',26,7,1,0});
         ByteArrayOutputStream main = new ByteArrayOutputStream(); vint(main,1); vint(main,0); vint(main,mainFlags); block(out,main.toByteArray());
         ByteArrayOutputStream file = new ByteArrayOutputStream(); vint(file,2); vint(file,extra == null ? 2 : 3);

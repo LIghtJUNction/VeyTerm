@@ -46,6 +46,8 @@ public final class ArchiveTools {
         public int maxEntries = 100000;
         public int maxMemoryKiB = 65536;
         public boolean replaceExisting = false;
+        private File rarExecutable;
+        private final Set<File> rarVolumes = new HashSet<>();
         private Options snapshot() throws IOException {
             if (encryption == null || maxEntryBytes < 0 || maxTotalBytes < 0 || maxEntries < 1 || maxMemoryKiB < 1024)
                 throw new IOException("Invalid archive options or limits");
@@ -55,6 +57,7 @@ public final class ArchiveTools {
             o.maxEntryBytes = maxEntryBytes; o.maxTotalBytes = maxTotalBytes;
             o.maxEntries = maxEntries; o.maxMemoryKiB = maxMemoryKiB;
             o.replaceExisting = replaceExisting;
+            o.rarExecutable = RarExecutable.getExecutable();
             return o;
         }
         private void wipe() { if (password != null) Arrays.fill(password, '\0'); }
@@ -165,6 +168,7 @@ public final class ArchiveTools {
             for (Entry e : entries) if (matches(e.name, selection)) {
                 File target = safeTarget(root, e.name);
                 if (target.equals(archivePath)) throw new IOException("Cannot extract over the source archive");
+                if (o.rarVolumes.contains(target.getCanonicalFile())) throw new IOException("Cannot extract over a source RAR volume");
                 if (target.exists() && !(e.directory && target.isDirectory()) && !o.replaceExisting)
                     throw new IOException("Destination exists: " + e.name);
                 if (target.exists() && target.isDirectory() != e.directory)
@@ -352,7 +356,21 @@ public final class ArchiveTools {
                 }
             }
         } else if (format == Format.RAR) {
-            try (NativeRar rar = new NativeRar(file, o.maxMemoryKiB, j::check)) {
+            if (o.rarExecutable != null) {
+                CommandRar rar = new CommandRar(o.rarExecutable, file, o, j::check);
+                o.rarVolumes.addAll(rar.volumes);
+                // Validate the entire metadata set before any stdout is exposed.
+                Map<String, Entry> preflight = new LinkedHashMap<>();
+                for (CommandRar.Member h : rar.members) {
+                    Entry e = new Entry(h.name, h.directory, h.size, h.modified, h.encrypted);
+                    addUnique(preflight, e, o);
+                }
+                validateTree(preflight.values());
+                for (CommandRar.Member h : rar.members) {
+                    Entry e = new Entry(h.name, h.directory, h.size, h.modified, h.encrypted);
+                    checked.visit(e, out -> { if (!e.directory) rar.copy(h, out); });
+                }
+            } else try (NativeRar rar = new NativeRar(file, o.maxMemoryKiB, j::check)) {
                 NativeRar.Member h;
                 while ((h = rar.next()) != null) {
                     if (h.link || h.special) throw new IOException("RAR link/special member rejected: " + h.name);
@@ -480,6 +498,14 @@ public final class ArchiveTools {
         public void write(byte[] b, int off, int n) {}
     };
     private static void verify(File archive, Format f, Options o, Job j) throws IOException {
+        if (f == Format.RAR && o.rarExecutable != null) {
+            // Reuse all public metadata/name/tree checks, then the ordinary t
+            // command verifies all payloads once without producing user bytes.
+            walk(archive, f, o, j, (e, data) -> {});
+            j.report("verify", "", 0);
+            new CommandRar(o.rarExecutable, archive, o, j::check).test();
+            return;
+        }
         Meter meter = new Meter(o, j, "verify");
         walk(archive, f, o, j, (e, data) -> meter.transfer(e, data, DISCARD));
     }
