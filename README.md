@@ -6,8 +6,14 @@ terminal emulator, Android integration, shell bootstrap flow, and shared
 libraries from that upstream project so they can be extended with native AI
 workflows.
 
-The current tested APKs are available in the
+Published APKs are available in the
 [native bootstrap release](https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026-ui2).
+
+The source UI uses a flat, warm terminal palette with a session drawer. Session
+names and shell titles appear in the header; each session has rename and close
+actions. The top menu exposes extra keys, text input, keyboard and settings.
+See the [UI notes](docs/UI_DESIGN.md) and
+[interactive interface preview](docs/preview/veyterm-preview.html).
 
 ## Current fork boundary
 

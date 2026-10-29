@@ -104,6 +104,7 @@ public class TerminalToolbarViewPager {
 
         @Override
         public void onPageSelected(int position) {
+            mActivity.setTerminalToolbarHeight();
             if (position == 0) {
                 mActivity.getTerminalView().requestFocus();
             } else {

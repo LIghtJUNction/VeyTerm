@@ -26,4 +26,23 @@
         <item name="backgroundTint">@android:color/transparent</item>
     </style>
 
+    <style name="VeyTermPopupTheme" parent="@android:style/ThemeOverlay.Material.Dark">
+        <item name="android:colorAccent">@color/vey_accent</item>
+        <item name="android:colorBackground">@color/vey_surface_elevated</item>
+        <item name="android:textColorPrimary">@color/vey_text_primary</item>
+        <item name="android:textColorSecondary">@color/vey_text_secondary</item>
+        <item name="android:popupMenuStyle">@style/VeyTermPopupMenu</item>
+    </style>
+
+    <style name="VeyTermPopupMenu" parent="@android:style/Widget.Material.PopupMenu">
+        <item name="android:popupBackground">@drawable/veyterm_popup_background</item>
+    </style>
+
+    <style name="VeyTermSessionDialog" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/vey_accent</item>
+        <item name="android:colorBackground">@color/vey_surface_panel</item>
+        <item name="android:textColorPrimary">@color/vey_text_primary</item>
+        <item name="android:textColorSecondary">@color/vey_text_secondary</item>
+    </style>
+
 </resources>

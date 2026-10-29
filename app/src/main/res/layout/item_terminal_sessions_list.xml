@@ -8,13 +8,14 @@
     android:orientation="horizontal"
     android:paddingStart="16dp"
     android:paddingTop="10dp"
-    android:paddingEnd="16dp"
+    android:paddingEnd="4dp"
     android:paddingBottom="10dp">
 
     <View
         android:id="@+id/session_status_indicator"
         android:layout_width="6dp"
         android:layout_height="6dp"
+        android:importantForAccessibility="no"
         android:background="@drawable/session_status_stopped" />
 
     <LinearLayout
@@ -45,4 +46,15 @@
             android:textColor="@color/vey_text_secondary"
             android:textSize="11sp" />
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/session_actions_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="4dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/action_session_actions"
+        android:focusable="false"
+        android:padding="14dp"
+        android:src="@drawable/ic_more_vert" />
 </LinearLayout>

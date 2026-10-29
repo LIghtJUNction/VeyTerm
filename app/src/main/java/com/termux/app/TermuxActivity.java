@@ -12,9 +12,9 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.text.TextUtils;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -24,6 +24,7 @@ import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
+import android.widget.PopupMenu;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -46,6 +47,9 @@ import com.termux.app.activities.SettingsActivity;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.app.terminal.TermuxSessionsListViewController;
+import com.termux.app.terminal.SessionPresentation;
+import com.termux.app.terminal.SessionPresentationResolver;
+import com.termux.app.terminal.SessionPresentationStatus;
 import com.termux.app.terminal.io.TerminalToolbarViewPager;
 import com.termux.app.terminal.TermuxTerminalViewClient;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
@@ -64,6 +68,8 @@ import com.termux.view.TerminalViewClient;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.GravityCompat;
+import androidx.core.view.ViewCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.viewpager.widget.ViewPager;
 
@@ -532,14 +538,18 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         terminalToolbarViewPager.addOnPageChangeListener(new TerminalToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
     }
 
-    private void setTerminalToolbarHeight() {
+    public void setTerminalToolbarHeight() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
         if (terminalToolbarViewPager == null) return;
 
         ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-        layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
+        int extraKeysHeight = Math.round(mTerminalToolbarDefaultHeight *
             (mTermuxTerminalExtraKeys.getExtraKeysInfo() == null ? 0 : mTermuxTerminalExtraKeys.getExtraKeysInfo().getMatrix().length) *
             mProperties.getTerminalToolbarHeightScaleFactor());
+        layoutParams.height = isTerminalToolbarTextInputViewSelected()
+            ? Math.max(Math.round(48 * getResources().getDisplayMetrics().density),
+                Math.round(mTerminalToolbarDefaultHeight * mProperties.getTerminalToolbarHeightScaleFactor()))
+            : extraKeysHeight;
         terminalToolbarViewPager.setLayoutParams(layoutParams);
     }
 
@@ -553,6 +563,8 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         if (showNow && isTerminalToolbarTextInputViewSelected()) {
             // Focus the text input view if just revealed.
             findViewById(R.id.terminal_toolbar_text_input).requestFocus();
+        } else {
+            mTerminalView.requestFocus();
         }
     }
 
@@ -576,20 +588,20 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         ImageButton settingsButton = findViewById(R.id.settings_button);
         if (settingsButton != null) settingsButton.setOnClickListener(openSettings);
 
-        ImageButton topSettingsButton = findViewById(R.id.top_settings_button);
-        if (topSettingsButton != null) topSettingsButton.setOnClickListener(openSettings);
     }
 
     private void setNewSessionButtonView() {
         View newSessionButton = findViewById(R.id.new_session_button);
         newSessionButton.setOnClickListener(v -> mTermuxTerminalSessionActivityClient.addNewSession(false, null));
-        newSessionButton.setOnLongClickListener(v -> {
-            TextInputDialogUtils.textInput(TermuxActivity.this, R.string.title_create_named_session, null,
-                R.string.action_create_named_session_confirm, text -> mTermuxTerminalSessionActivityClient.addNewSession(false, text),
-                R.string.action_new_session_failsafe, text -> mTermuxTerminalSessionActivityClient.addNewSession(true, text),
-                -1, null, null);
-            return true;
-        });
+        newSessionButton.setOnLongClickListener(v -> showNamedSessionDialog());
+    }
+
+    private boolean showNamedSessionDialog() {
+        TextInputDialogUtils.textInput(this, R.string.title_create_named_session, null,
+            R.string.action_create_named_session_confirm, text -> mTermuxTerminalSessionActivityClient.addNewSession(false, text),
+            R.string.action_new_session_failsafe, text -> mTermuxTerminalSessionActivityClient.addNewSession(true, text),
+            -1, null, null);
+        return true;
     }
 
     private void setToggleKeyboardView() {
@@ -607,23 +619,83 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     private void setModernHeaderView() {
         View drawerToggleButton = findViewById(R.id.drawer_toggle_button);
         if (drawerToggleButton != null) {
-            drawerToggleButton.setOnClickListener(v -> getDrawer().openDrawer(Gravity.LEFT));
+            drawerToggleButton.setOnClickListener(v -> getDrawer().openDrawer(GravityCompat.START));
+            ViewCompat.setTooltipText(drawerToggleButton, getString(R.string.action_open_sessions));
         }
+
+        findViewById(R.id.terminal_session_switcher).setOnClickListener(
+            v -> getDrawer().openDrawer(GravityCompat.START));
 
         View topNewSessionButton = findViewById(R.id.top_new_session_button);
         if (topNewSessionButton != null) {
             topNewSessionButton.setOnClickListener(v -> mTermuxTerminalSessionActivityClient.addNewSession(false, null));
+            topNewSessionButton.setOnLongClickListener(v -> showNamedSessionDialog());
+            ViewCompat.setTooltipText(topNewSessionButton, getString(R.string.action_new_session));
         }
+
+        View actionsButton = findViewById(R.id.terminal_actions_button);
+        actionsButton.setOnClickListener(this::showTerminalActions);
+        ViewCompat.setTooltipText(actionsButton, getString(R.string.action_terminal_actions));
+    }
+
+    private void showTerminalActions(View anchor) {
+        PopupMenu popup = new PopupMenu(new ContextThemeWrapper(this, R.style.VeyTermPopupTheme), anchor);
+        popup.inflate(R.menu.terminal_actions);
+        popup.getMenu().findItem(R.id.action_extra_keys).setChecked(
+            getTerminalToolbarViewPager().getVisibility() == View.VISIBLE && isTerminalViewSelected());
+        popup.getMenu().findItem(R.id.action_keep_screen_on).setChecked(mTerminalView.getKeepScreenOn());
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.action_extra_keys) {
+                if (getTerminalToolbarViewPager().getVisibility() == View.VISIBLE && isTerminalViewSelected()) {
+                    toggleTerminalToolbar();
+                } else {
+                    getTerminalToolbarViewPager().setCurrentItem(0, false);
+                    if (getTerminalToolbarViewPager().getVisibility() != View.VISIBLE) toggleTerminalToolbar();
+                }
+            } else if (id == R.id.action_text_input) {
+                if (getTerminalToolbarViewPager().getVisibility() != View.VISIBLE) toggleTerminalToolbar();
+                getTerminalToolbarViewPager().setCurrentItem(1, false);
+                View input = findViewById(R.id.terminal_toolbar_text_input);
+                if (input != null) input.requestFocus();
+            } else if (id == R.id.action_keyboard) {
+                mTermuxTerminalViewClient.onToggleSoftKeyboardRequest();
+            } else if (id == R.id.action_named_session) {
+                showNamedSessionDialog();
+            } else if (id == R.id.action_keep_screen_on) {
+                toggleKeepScreenOn();
+            } else if (id == R.id.action_settings) {
+                ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
+            } else {
+                return false;
+            }
+            return true;
+        });
+        popup.show();
+    }
+
+    public void confirmCloseSession(TerminalSession session) {
+        if (session == null || mTermuxService == null || mTermuxService.getIndexOfSession(session) < 0) return;
+        if (!session.isRunning()) {
+            mTermuxTerminalSessionActivityClient.removeFinishedSession(session);
+            return;
+        }
+        new AlertDialog.Builder(this, R.style.VeyTermSessionDialog)
+            .setTitle(getString(R.string.title_close_session, getSessionPresentation(session).getDisplayName()))
+            .setMessage(R.string.msg_close_session)
+            .setPositiveButton(R.string.action_close_session,
+                (dialog, which) -> mTermuxTerminalSessionActivityClient.closeSession(session))
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
     }
 
 
 
 
-
-    @SuppressLint({"RtlHardcoded", "MissingSuperCall"})
+    @SuppressLint("MissingSuperCall")
     @Override
     public void onBackPressed() {
-        if (getDrawer().isDrawerOpen(Gravity.LEFT)) {
+        if (getDrawer().isDrawerOpen(GravityCompat.START)) {
             getDrawer().closeDrawers();
         } else {
             finishActivityIfNotFinishing();
@@ -883,30 +955,43 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         updateSessionHeader();
     }
 
+    public SessionPresentation getSessionPresentation(TerminalSession session) {
+        int position = mTermuxService == null ? 0 : Math.max(0, mTermuxService.getIndexOfSession(session));
+        return SessionPresentationResolver.resolve(position, session.mSessionName, session.getTitle(),
+            session.isRunning(), session.getExitStatus(), getString(R.string.terminal_header_local_shell),
+            getString(R.string.terminal_session_detail_running), getString(R.string.terminal_session_detail_exited));
+    }
+
     private void updateSessionHeader() {
         TextView titleView = findViewById(R.id.terminal_header_title);
         TextView subtitleView = findViewById(R.id.terminal_header_subtitle);
         View statusView = findViewById(R.id.terminal_header_status);
         if (titleView == null || subtitleView == null || statusView == null) return;
 
+        int count = mTermuxService == null ? 0 : mTermuxService.getTermuxSessionsSize();
+        TextView countView = findViewById(R.id.terminal_sessions_count);
+        countView.setText(getResources().getQuantityString(R.plurals.terminal_session_count, count, count));
+
         TerminalSession session = getCurrentSession();
         if (session == null) {
             titleView.setText(R.string.application_name);
             subtitleView.setText(R.string.terminal_header_local_shell);
             statusView.setBackgroundResource(R.drawable.session_status_stopped);
+            findViewById(R.id.terminal_session_switcher).setContentDescription(getString(R.string.action_open_sessions));
             return;
         }
 
-        String name = session.mSessionName;
-        titleView.setText(TextUtils.isEmpty(name) ? getString(R.string.application_name) : name);
-        if (session.isRunning()) {
-            subtitleView.setText(R.string.terminal_header_running);
-            statusView.setBackgroundResource(R.drawable.session_status_running);
-        } else {
-            subtitleView.setText(R.string.terminal_header_exited);
-            statusView.setBackgroundResource(session.getExitStatus() == 0
-                ? R.drawable.session_status_stopped : R.drawable.session_status_error);
-        }
+        SessionPresentation presentation = getSessionPresentation(session);
+        titleView.setText(presentation.getDisplayName());
+        subtitleView.setText(presentation.getDetail());
+        subtitleView.setTextColor(androidx.core.content.ContextCompat.getColor(this,
+            presentation.getStatus() == SessionPresentationStatus.ERROR ? R.color.vey_error : R.color.vey_text_secondary));
+        statusView.setBackgroundResource(presentation.getStatus() == SessionPresentationStatus.RUNNING
+            ? R.drawable.session_status_running : presentation.getStatus() == SessionPresentationStatus.EXITED
+            ? R.drawable.session_status_stopped : R.drawable.session_status_error);
+        findViewById(R.id.terminal_session_switcher).setContentDescription(
+            getString(R.string.terminal_session_accessibility, presentation.getDisplayName(), presentation.getDetail())
+                + ", " + getString(R.string.action_open_sessions));
     }
 
     public boolean isVisible() {

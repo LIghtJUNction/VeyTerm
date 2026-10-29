@@ -55,6 +55,21 @@
     <string name="action_toggle_soft_keyboard">Keyboard</string>
 
     <string name="action_open_sessions">Open sessions</string>
+    <string name="action_terminal_actions">Terminal actions</string>
+    <string name="action_session_actions">Session actions</string>
+    <string name="action_session_actions_for">Actions for %1$s</string>
+    <string name="action_extra_keys">Extra keys</string>
+    <string name="action_text_input">Text input</string>
+    <string name="action_rename_session">Rename session</string>
+    <string name="action_close_session">Close session</string>
+    <string name="title_close_session">Close “%1$s”?</string>
+    <string name="msg_close_session">The shell will stop. Unsaved work in this session may be lost.</string>
+    <string name="terminal_current_session">Current session</string>
+    <string name="terminal_session_accessibility">%1$s, %2$s</string>
+    <plurals name="terminal_session_count">
+        <item quantity="one">%d session</item>
+        <item quantity="other">%d sessions</item>
+    </plurals>
     <string name="terminal_header_local_shell">Local shell</string>
     <string name="terminal_workspace_sections">Sessions</string>
     <string name="terminal_header_running">Running</string>

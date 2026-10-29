@@ -1,15 +1,17 @@
 package com.termux.app.terminal;
 
-import android.text.TextUtils;
+import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
+import android.widget.PopupMenu;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
@@ -40,6 +42,7 @@ public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession
         View statusIndicator = sessionRowView.findViewById(R.id.session_status_indicator);
         TextView sessionTitleView = sessionRowView.findViewById(R.id.session_title);
         TextView sessionDetailView = sessionRowView.findViewById(R.id.session_detail);
+        View actionsButton = sessionRowView.findViewById(R.id.session_actions_button);
 
         TermuxSession termuxSession = getItem(position);
         TerminalSession sessionAtRow = termuxSession == null ? null : termuxSession.getTerminalSession();
@@ -49,21 +52,13 @@ public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession
             sessionTitleView.setText(R.string.terminal_header_local_shell);
             sessionDetailView.setText("");
             sessionRow.setContentDescription(sessionTitleView.getText());
+            actionsButton.setVisibility(View.INVISIBLE);
+            actionsButton.setOnClickListener(null);
             return sessionRowView;
         }
 
-        String name = sessionAtRow.mSessionName;
-        String sessionTitle = sessionAtRow.getTitle();
         boolean isCurrentSession = sessionAtRow == mActivity.getCurrentSession();
-        SessionPresentation presentation = SessionPresentationResolver.resolve(
-            position,
-            name,
-            sessionTitle,
-            sessionAtRow.isRunning(),
-            sessionAtRow.getExitStatus(),
-            mActivity.getString(R.string.terminal_header_local_shell),
-            mActivity.getString(R.string.terminal_session_detail_running),
-            mActivity.getString(R.string.terminal_session_detail_exited));
+        SessionPresentation presentation = mActivity.getSessionPresentation(sessionAtRow);
 
         sessionRow.setActivated(isCurrentSession);
         sessionTitleView.setText(presentation.getDisplayName());
@@ -76,7 +71,28 @@ public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession
         int statusDrawable = presentation.getStatus() == SessionPresentationStatus.RUNNING ? R.drawable.session_status_running :
             (presentation.getStatus() == SessionPresentationStatus.EXITED ? R.drawable.session_status_stopped : R.drawable.session_status_error);
         statusIndicator.setBackgroundResource(statusDrawable);
-        sessionRow.setContentDescription(presentation.getDisplayName() + ", " + presentation.getDetail());
+        String description = mActivity.getString(R.string.terminal_session_accessibility,
+            presentation.getDisplayName(), presentation.getDetail());
+        sessionRow.setContentDescription(isCurrentSession
+            ? description + ", " + mActivity.getString(R.string.terminal_current_session) : description);
+        actionsButton.setVisibility(View.VISIBLE);
+        actionsButton.setContentDescription(mActivity.getString(R.string.action_session_actions_for, presentation.getDisplayName()));
+        ViewCompat.setTooltipText(actionsButton, mActivity.getString(R.string.action_session_actions));
+        actionsButton.setOnClickListener(anchor -> {
+            PopupMenu popup = new PopupMenu(new ContextThemeWrapper(mActivity, R.style.VeyTermPopupTheme), anchor);
+            popup.inflate(R.menu.session_actions);
+            popup.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == R.id.action_rename_session) {
+                    mActivity.getTermuxTerminalSessionClient().renameSession(sessionAtRow);
+                } else if (item.getItemId() == R.id.action_close_session) {
+                    mActivity.confirmCloseSession(sessionAtRow);
+                } else {
+                    return false;
+                }
+                return true;
+            });
+            popup.show();
+        });
         return sessionRowView;
     }
 

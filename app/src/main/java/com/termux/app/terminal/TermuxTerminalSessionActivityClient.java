@@ -184,6 +184,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 removeFinishedSession(finishedSession);
             }
         }
+        termuxSessionListNotifyUpdated();
     }
 
     @Override
@@ -438,23 +439,37 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     public void removeFinishedSession(TerminalSession finishedSession) {
-        // Return pressed with finished session - remove it.
+        if (finishedSession.isRunning()) return;
+        closeSession(finishedSession);
+    }
+
+    public void closeSession(TerminalSession session) {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return;
 
-        int index = service.removeTermuxSession(finishedSession);
+        int index = service.getIndexOfSession(session);
+        if (index < 0) return;
+        TerminalSession currentSession = mActivity.getCurrentSession();
+        TermuxSession termuxSession = service.getTermuxSession(index);
+        if (session.isRunning()) {
+            termuxSession.killIfExecuting(mActivity, true);
+        } else {
+            service.removeTermuxSession(session);
+        }
 
         int size = service.getTermuxSessionsSize();
         if (size == 0) {
             // There are no sessions to show, so finish the activity.
             mActivity.finishActivityIfNotFinishing();
+        } else if (currentSession != session && service.getIndexOfSession(currentSession) >= 0) {
+            setCurrentSession(currentSession);
         } else {
             if (index >= size) {
                 index = size - 1;
             }
-            TermuxSession termuxSession = service.getTermuxSession(index);
-            if (termuxSession != null)
-                setCurrentSession(termuxSession.getTerminalSession());
+            TermuxSession nextSession = service.getTermuxSession(index);
+            if (nextSession != null)
+                setCurrentSession(nextSession.getTerminalSession());
         }
     }
 

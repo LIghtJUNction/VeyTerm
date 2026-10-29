@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_extra_keys" android:title="@string/action_extra_keys" android:checkable="true" />
+    <item android:id="@+id/action_text_input" android:title="@string/action_text_input" />
+    <item android:id="@+id/action_keyboard" android:title="@string/action_toggle_soft_keyboard" />
+    <item android:id="@+id/action_named_session" android:title="@string/title_create_named_session" />
+    <item android:id="@+id/action_keep_screen_on" android:title="@string/action_toggle_keep_screen_on" android:checkable="true" />
+    <item android:id="@+id/action_settings" android:title="@string/action_open_settings" />
+</menu>
