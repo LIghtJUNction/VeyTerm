@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="fm_WorkspaceTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/vey_accent</item>
+        <item name="android:colorBackground">@color/vey_surface_terminal</item>
+        <item name="android:windowBackground">@color/vey_surface_terminal</item>
+        <item name="android:statusBarColor">@color/vey_surface_terminal</item>
+        <item name="android:navigationBarColor">@color/vey_surface_terminal</item>
+        <item name="android:textColorPrimary">@color/vey_text_primary</item>
+        <item name="android:textColorSecondary">@color/vey_text_secondary</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:buttonStyle">@style/fm_ActionButton</item>
+    </style>
+    <style name="fm_ActionButton" parent="android:style/Widget.Material.Button.Borderless">
+        <item name="android:textColor">@color/vey_accent</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>
