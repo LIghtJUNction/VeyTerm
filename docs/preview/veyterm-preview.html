@@ -74,6 +74,104 @@ dialog::backdrop { background: #0007; }
 .notice { position: fixed; inset: auto 16px 84px; margin: 0 auto; width: fit-content; max-width: calc(100% - 32px); background: var(--raised); color: var(--ink); padding: 12px 20px; border-radius: 12px; font-size: 13px; }
 @media (min-width: 800px) { .terminal { padding: 24px 32px; font-size: 14px; } .keys { grid-template-columns: repeat(14, minmax(0, 1fr)); } .keys button { min-height: 40px; } }
 @media (prefers-reduced-motion: no-preference) { button { transition: background-color 120ms ease; } }
+
+/* Files share the terminal's quiet surface; only the two columns need a divider. */
+:root[data-theme="light"] {
+  --bg: #f4f0e8; --panel: #eae5dc; --raised: #e1dbcf; --selected: #dce2cf;
+  --ink: #302e2a; --muted: #605b50; --dim: #756c61; --sage: #526647; --error: #a13c32;
+  color-scheme: light;
+}
+select, textarea { font: inherit; color: inherit; }
+:where(button, input, select, textarea):focus-visible { outline: 2px solid var(--sage); outline-offset: -3px; }
+.files-open > .terminal, .files-open > .keys, .files-open > .text-input { display: none; }
+#toggle-files[aria-expanded="true"] { color: var(--sage); background: var(--selected); }
+.workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.workspace-heading { display: flex; align-items: center; gap: 1rem; padding: .5rem 1.25rem 0; }
+.workspace-heading h1 { margin: 0; font-size: 1.5rem; font-weight: 500; flex: 1; }
+.text-button { min-height: max(44px, 2.75rem); padding: .5rem .75rem; color: var(--sage); }
+.demo-label { margin: 0; padding: 0 1.25rem .5rem; color: var(--muted); font-size: .85rem; }
+.file-tools { display: flex; flex-wrap: wrap; padding: 0 .5rem .5rem; gap: .25rem; }
+.file-tools button { min-height: max(44px, 2.75rem); padding: .4rem .75rem; color: var(--muted); }
+.file-tools button:hover { color: var(--ink); }
+.panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1 0 24rem; min-height: 24rem; }
+.file-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.file-pane + .file-pane { border-inline-start: 1px solid var(--raised); }
+.pane-heading { display: flex; align-items: center; padding: 0 .5rem; gap: .25rem; }
+.pane-activate { flex: 1; min-width: 0; min-height: max(44px, 2.75rem); text-align: start; padding: .4rem .5rem; font-weight: 600; color: var(--muted); }
+.pane-activate[aria-pressed="true"] { color: var(--sage); }
+.pane-activate[aria-pressed="true"]::after { content: ' · active'; font-size: .75rem; font-weight: 400; }
+.pane-count { color: var(--muted); font: .8rem var(--mono); }
+.pane-path { margin: 0; padding: 0 1rem; color: var(--muted); font: .8rem/1.5 var(--mono); overflow-wrap: anywhere; }
+.pane-nav { display: flex; align-items: center; flex-wrap: wrap; padding: .2rem .5rem; }
+.pane-nav button { min-width: max(44px, 2.75rem); min-height: max(44px, 2.75rem); font-size: 1.1rem; }
+.pane-nav .root-button { font-size: .8rem; margin-inline-start: auto; }
+.pane-filter { margin: 0 .75rem; display: flex; flex-direction: column; }
+.pane-filter input { width: 100%; min-width: 0; min-height: max(44px, 2.75rem); border: 0; border-bottom: 1px solid var(--raised); background: transparent; padding: .4rem .25rem; font-size: .9rem; }
+.pane-sort { display: flex; gap: .25rem; align-items: center; padding: 0 .75rem; color: var(--muted); font-size: .8rem; }
+.pane-sort select { min-height: max(44px, 2.75rem); width: 100%; min-width: 0; border: 0; background: var(--bg); }
+.file-list { flex: 1; min-height: 0; overflow: auto; padding: .3rem .5rem 1rem; scrollbar-color: var(--dim) transparent; }
+.file-row { display: flex; align-items: stretch; min-height: 3.5rem; }
+.file-row:has(input:checked) { background: var(--selected); }
+.file-check { width: max(44px, 2.75rem); min-height: max(44px, 2.75rem); display: grid; place-items: center; flex-shrink: 0; cursor: pointer; }
+.file-check input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--sage); }
+.file-open { flex: 1; min-width: 0; text-align: start; padding: .6rem .4rem; line-height: 1.4; }
+.file-name { display: block; overflow-wrap: anywhere; }
+.file-name svg { width: 1rem; height: 1rem; fill: none; stroke: var(--sage); stroke-width: 1.5; margin-inline-end: .4rem; vertical-align: -.1rem; }
+.file-detail { display: block; color: var(--muted); font: .75rem/1.5 var(--mono); margin-top: .15rem; }
+.empty-files { margin: 1rem .5rem; color: var(--muted); font-size: .9rem; }
+.workspace-actions { padding: .5rem .75rem; background: var(--panel); flex-shrink: 0; }
+.transfer-direction { margin: 0 .5rem .25rem; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.operation-buttons { display: flex; flex-wrap: wrap; gap: .2rem; }
+.operation-buttons button { min-height: max(44px, 2.75rem); padding: .5rem .75rem; }
+.operation-buttons button:first-child, .operation-buttons button:nth-child(2) { color: var(--sage); }
+.operation-buttons button:disabled { color: var(--dim); }
+.workspace-status { margin: 0; padding: .3rem 1.25rem .6rem; color: var(--muted); font-size: .8rem; background: var(--panel); }
+.workspace-dialog { width: min(42rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); padding: 1.5rem; overflow: auto; }
+.workspace-dialog h2 { margin: 0 0 .5rem; font-size: 1.3rem; font-weight: 500; overflow-wrap: anywhere; }
+.workspace-dialog p { margin: .5rem 0 1rem; color: var(--muted); overflow-wrap: anywhere; }
+.workspace-dialog label { display: block; margin-block: .75rem; }
+.workspace-dialog input:not([type="checkbox"]), .workspace-dialog select { width: 100%; min-height: max(44px, 2.75rem); padding: .5rem; background: var(--bg); border: 1px solid var(--dim); }
+.workspace-dialog .dialog-actions { flex-wrap: wrap; }
+.workspace-dialog .dialog-actions button { min-height: max(44px, 2.75rem); }
+.workspace-dialog .error { color: var(--error); }
+.conflict-row { padding-block: .5rem; border-top: 1px solid var(--raised); overflow-wrap: anywhere; }
+.conflict-row label { margin: .25rem 0; }
+#file-text { display: block; width: 100%; height: 35dvh; min-height: 8rem; resize: vertical; border: 1px solid var(--dim); padding: .75rem; background: var(--bg); font: .9rem/1.6 var(--mono); tab-size: 2; }
+.tool-tabs { display: flex; flex-wrap: wrap; margin: .5rem -.5rem; }
+.tool-tabs button { min-height: max(44px, 2.75rem); padding: .5rem; color: var(--sage); }
+.tool-tabs button[aria-pressed="true"] { background: var(--selected); }
+.tool-detail { white-space: pre-wrap; overflow-wrap: anywhere; font: .85rem/1.8 var(--mono); }
+@media (max-width: 480px) {
+  .workspace-heading { padding-inline: .75rem; }
+  .demo-label { padding-inline: .75rem; }
+  .file-tools { padding-inline: .25rem; gap: 0; }
+  .file-tools button { flex: 1; padding-inline: .4rem; font-size: .85rem; }
+  .pane-nav { padding-inline: 0; }
+  .pane-nav .root-button { margin: 0; }
+  .file-list { padding-inline: .2rem; }
+  .file-open { padding-inline: .15rem; font-size: .9rem; }
+  .pane-count { display: none; }
+  .pane-path { padding-inline: .75rem; }
+  .operation-buttons button { flex-grow: 1; padding-inline: .5rem; }
+  .workspace-dialog { padding: 1rem; }
+}
+@media (max-height: 500px) and (min-width: 600px) {
+  .workspace { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 2fr); grid-template-rows: max-content max-content minmax(16rem, 1fr) max-content max-content; }
+  .workspace-heading { grid-area: 1 / 1; padding: 0 .75rem; gap: .25rem; }
+  .workspace-heading h1 { font-size: 1.2rem; }
+  .file-tools { grid-area: 1 / 2; padding: 0 .5rem; justify-content: flex-end; }
+  .demo-label { grid-area: 2 / 1 / 3 / -1; }
+  .panes { grid-area: 3 / 1 / 4 / -1; min-height: 16rem; }
+  .workspace-actions { grid-area: 4 / 1 / 5 / -1; }
+  .workspace-status { grid-area: 5 / 1 / 6 / -1; }
+  .file-pane { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: max-content max-content max-content minmax(0, 1fr); }
+  .pane-heading { grid-area: 1 / 1; }
+  .pane-path { grid-area: 2 / 1; }
+  .pane-nav { grid-area: 1 / 2 / 3 / 3; padding: 0; justify-content: flex-end; }
+  .pane-filter { grid-area: 3 / 1; }
+  .pane-sort { grid-area: 3 / 2; }
+  .file-list { grid-area: 4 / 1 / 5 / -1; }
+}
 </style>
 </head>
 <body>
@@ -81,6 +179,7 @@ dialog::backdrop { background: #0007; }
   <symbol id="menu-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
   <symbol id="plus-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="more-icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="folder-icon" viewBox="0 0 24 24"><path d="M3 7V5h6l2 2h10v13H3z"/></symbol>
   <symbol id="close-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
 </svg>
 <header class="topbar">
@@ -88,6 +187,7 @@ dialog::backdrop { background: #0007; }
   <button class="session-heading" id="session-heading" aria-label="Open sessions"><strong id="header-name">local</strong><small id="header-detail">~/projects/hello</small></button>
   <span class="dot" aria-hidden="true"></span>
   <button class="icon" id="new-session" aria-label="New session" title="New session"><svg aria-hidden="true"><use href="#plus-icon"/></svg></button>
+  <button class="icon" id="toggle-files" aria-label="Open file workspace" aria-controls="file-workspace" aria-expanded="false" title="Open file workspace"><svg aria-hidden="true"><use href="#folder-icon"/></svg></button>
   <button class="icon more" id="terminal-actions" aria-label="Terminal actions" aria-haspopup="menu" aria-expanded="false" title="Terminal actions"><svg aria-hidden="true"><use href="#more-icon"/></svg></button>
 </header>
 <main class="terminal" id="terminal" aria-label="Terminal interface preview">
@@ -101,6 +201,15 @@ Description     : Small, free and friendly text editor</span></pre>
 Start an agent with veyterm-agents &lt;name&gt;.</span></pre>
   <pre class="dim">Interface preview · commands are not executed.</pre>
   <div><span class="prompt">❯</span> <span class="cursor" aria-hidden="true"></span></div>
+</main>
+
+<main class="workspace" id="file-workspace" aria-label="Demo file workspace" hidden>
+  <header class="workspace-heading"><h1>Files</h1><button class="text-button" id="return-terminal">← Terminal</button></header>
+  <p class="demo-label">Preview data · no device storage. Changes reset on reload.</p>
+  <nav class="file-tools" aria-label="File tools"><button id="tool-editor">Text editor</button><button id="tool-archive">Archive</button><button id="tool-apk">APK</button><button id="tool-network">Network</button></nav>
+  <div class="panes" id="file-panes"></div>
+  <div class="workspace-actions"><p class="transfer-direction" id="transfer-direction"></p><div class="operation-buttons" aria-label="File operations"><button id="copy-files">Copy →</button><button id="move-files">Move →</button><button id="rename-file">Rename</button><button id="delete-files">Delete</button><button id="new-folder">New folder</button></div></div>
+  <p class="workspace-status" id="file-status" role="status" aria-live="polite">Select a checkbox to copy or move. Open a name to browse or edit.</p>
 </main>
 <div class="keys" id="extra-keys" aria-label="Extra keys">
   <button>ESC</button><button>/</button><button>−</button><button>HOME</button><button>↑</button><button>END</button><button>PGUP</button>
@@ -118,11 +227,17 @@ Start an agent with veyterm-agents &lt;name&gt;.</span></pre>
   <button role="menuitem" id="show-input">Text input</button>
   <button role="menuitem" id="menu-keyboard">Keyboard</button>
   <button role="menuitem" id="named-session">New named session</button>
+  <button role="menuitem" id="toggle-theme">Use light theme</button>
   <button role="menuitem" disabled title="Available in the Android app">Keep screen on</button>
   <button role="menuitem" disabled title="Available in the Android app">Settings</button>
 </div>
 <dialog class="editor" id="name-dialog" aria-labelledby="name-title"><form id="name-form"><h2 id="name-title">New named session</h2><input id="session-name" aria-label="Session name" autocomplete="off"><div class="dialog-actions"><button type="button" id="cancel-name">Cancel</button><button type="submit" id="save-name">Create</button></div></form></dialog>
 <dialog class="editor" id="close-dialog" aria-labelledby="close-title"><h2 id="close-title">Close session?</h2><p>The shell will stop. Unsaved work in this session may be lost.</p><div class="dialog-actions"><button id="cancel-close">Cancel</button><button class="danger" id="confirm-close">Close session</button></div></dialog>
+
+<dialog class="workspace-dialog" id="file-dialog" aria-labelledby="file-dialog-title"><form id="file-form"><h2 id="file-dialog-title"></h2><div id="file-dialog-body"></div><p class="error" id="file-dialog-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="file-cancel">Cancel</button><button type="submit" id="file-confirm">Confirm</button></div></form></dialog>
+<dialog class="workspace-dialog" id="text-editor-dialog" aria-labelledby="text-editor-title"><form id="text-editor-form"><h2 id="text-editor-title"></h2><p id="text-editor-path"></p><label for="file-text">Sample text · edits stay in this preview</label><textarea id="file-text" spellcheck="false"></textarea><div class="dialog-actions"><button type="button" id="cancel-file-edit">Cancel</button><button type="submit">Save sample</button></div></form></dialog>
+<dialog class="workspace-dialog" id="discard-edit-dialog" aria-labelledby="discard-edit-title"><h2 id="discard-edit-title">Discard sample changes?</h2><p>Your last saved version will be kept.</p><div class="dialog-actions"><button id="keep-file-editing">Keep editing</button><button id="discard-file-edit">Discard changes</button></div></dialog>
+<dialog class="workspace-dialog" id="tool-dialog" aria-labelledby="tool-title"><h2 id="tool-title"></h2><p id="tool-description"></p><nav class="tool-tabs" id="tool-tabs" aria-label="Preview details"></nav><pre class="tool-detail" id="tool-detail"></pre><div class="dialog-actions"><button id="close-tool">Done</button></div></dialog>
 <div class="notice" id="notice" role="status" hidden>Interface preview — open VeyTerm to run commands.</div>
 <script>
 const $ = id => document.getElementById(id);
@@ -151,7 +266,7 @@ function updateSessions() {
     const select = document.createElement('button'); select.className = 'session-select'; select.setAttribute('aria-current', String(session.id === current));
     const name = document.createElement('strong'); name.textContent = session.name;
     const detail = document.createElement('small'); detail.textContent = session.detail;
-    select.append(name, detail); select.onclick = () => { current = session.id; $('sessions').close(); renderTerminal(); updateSessions(); };
+    select.append(name, detail); select.onclick = () => { current = session.id; $('sessions').close(); showTerminal(); renderTerminal(); updateSessions(); };
     const actions = document.createElement('button'); actions.className = 'icon more'; actions.textContent = '⋮';
     actions.setAttribute('aria-label', `Actions for ${session.name}`); actions.setAttribute('aria-haspopup', 'menu'); actions.setAttribute('aria-expanded', 'false');
     actions.onclick = () => { menuSession = session; openMenu($('session-menu'), actions); const rect = actions.getBoundingClientRect(); $('session-menu').style.top = `${Math.max(64, Math.min(rect.bottom, innerHeight - 128))}px`; $('session-menu').style.left = '48px'; $('session-menu').style.right = 'auto'; };
@@ -168,6 +283,7 @@ function renderTerminal() {
   }
 }
 function newSession(name) {
+  showTerminal();
   if (shellSessions.length >= 8) { showNotice('Max terminals reached. Close an existing session first.'); return; }
   current = nextId++; shellSessions.push({ id: current, name: name?.trim() || `Local shell ${shellSessions.length + 1}`, detail: 'Active shell' });
   if ($('sessions').open) $('sessions').close(); updateSessions(); renderTerminal();
@@ -177,7 +293,7 @@ function showNameDialog(session = null) {
   $('save-name').textContent = session ? 'Set' : 'Create'; $('session-name').value = session?.name || '';
   $('name-dialog').showModal(); $('session-name').focus(); $('session-name').select();
 }
-function showInput() { dismissMenu(); if ($('sessions').open) $('sessions').close(); $('extra-keys').hidden = true; $('text-input').hidden = false; $('toggle-keys').setAttribute('aria-checked', 'false'); $('command').focus(); }
+function showInput() { showTerminal(); dismissMenu(); if ($('sessions').open) $('sessions').close(); $('extra-keys').hidden = true; $('text-input').hidden = false; $('toggle-keys').setAttribute('aria-checked', 'false'); $('command').focus(); }
 function showNotice(message = 'Interface preview — open VeyTerm to run commands.') { clearTimeout(noticeTimer); $('notice').textContent = message; $('notice').hidden = false; noticeTimer = setTimeout(() => $('notice').hidden = true, 3000); }
 $('open-sessions').onclick = $('session-heading').onclick = () => { dismissMenu(false); $('sessions').showModal(); };
 $('close-sessions').onclick = () => $('sessions').close();
@@ -203,6 +319,325 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); const items = [...activeMenu.querySelectorAll('button:not(:disabled)')]; const index = items.indexOf(document.activeElement); items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
 }, true);
 updateSessions();
+</script>
+
+<script>
+function showTerminal() { setWorkspace(false); }
+function setWorkspace(open) {
+  dismissMenu(false);
+  document.body.classList.toggle('files-open', open);
+  $('file-workspace').hidden = !open;
+  $('toggle-files').setAttribute('aria-expanded', String(open));
+  $('toggle-files').setAttribute('aria-label', open ? 'Return to terminal' : 'Open file workspace');
+  $('toggle-files').title = open ? 'Return to terminal' : 'Open file workspace';
+}
+$('toggle-files').onclick = () => {
+  const open = $('file-workspace').hidden; setWorkspace(open);
+  if (open) document.querySelector('.pane-activate[aria-pressed="true"]').focus();
+};
+$('return-terminal').onclick = () => { showTerminal(); $('toggle-files').focus(); };
+$('toggle-theme').onclick = () => {
+  const light = document.documentElement.dataset.theme !== 'light';
+  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+  $('toggle-theme').textContent = light ? 'Use dark theme' : 'Use light theme';
+  dismissMenu();
+};
+{
+  let serial = 0, active = 0, fileSubmit = null, editTarget = null, editorValue = '';
+  const node = (name, kind, data = '') => ({ id: ++serial, name, kind, modified: '2026-10-30',
+    ...(kind === 'folder' ? { children: data } : { content: data }) });
+  const project = node('project', 'folder', [
+    node('src', 'folder', [node('hello.sh', 'text', '#!/usr/bin/env sh\n\nprintf "Hello from VeyTerm\\n"\n'),
+      node('config.json', 'text', '{\n  "theme": "sage",\n  "workspace": "demo"\n}\n')]),
+    node('README.md', 'text', '# A small workspace\n\nThese are sample files in the VeyTerm browser preview.\nNo Android storage is connected.\n\nTry editing this note, then copying it to the other pane.\n'),
+    node('notes.txt', 'text', 'Things to try\n\n1. Open src in the left pane.\n2. Go back without changing the right pane.\n3. Copy a file, then try a name conflict.\n'),
+    node('theme.json', 'text', '{\n  "background": "warm charcoal",\n  "accent": "sage"\n}\n')
+  ]);
+  const inbox = node('inbox', 'folder', [
+    node('saved', 'folder', []), node('notes.txt', 'text', 'Inbox note — this file already exists.\nChoose Keep both, Skip, or explicitly confirm Replace.\n'),
+    node('starter.zip', 'archive'), node('veyterm-demo.apk', 'apk')
+  ]);
+  const root = node('demo', 'folder', [project, inbox]);
+  const panes = [project, inbox].map(dir => ({ dir, back: [], forward: [], selected: new Set(), filter: '', sort: 'name' }));
+  function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+  function button(text, label, handler, cls) { const b = el('button', text, cls); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label; b.onclick = handler; return b; }
+  function route(target, here = root, trail = []) {
+    if (target === here) return [...trail, here];
+    for (const child of here.children || []) { const result = route(target, child, [...trail, here]); if (result) return result; }
+    return null;
+  }
+  function path(n) { return '/' + (route(n) || [n]).map(x => x.name).join('/'); }
+  function status(message) { $('file-status').textContent = message; }
+  function selected(side = active) { return panes[side].dir.children.filter(n => panes[side].selected.has(n.id)); }
+  function activate(side) { active = side; updateActions(); }
+  function updateActions() {
+    panes.forEach((p, i) => {
+      $('activate-' + i).setAttribute('aria-pressed', String(i === active));
+      $('count-' + i).textContent = p.selected.size ? `${p.selected.size} selected` : `${p.dir.children.length} items`;
+    });
+    const count = selected().length, from = active === 0 ? 'Left' : 'Right', to = active === 0 ? 'Right' : 'Left';
+    $('transfer-direction').textContent = `${from} → ${to} · ${count} selected · to ${path(panes[1 - active].dir)}`;
+    $('copy-files').textContent = active === 0 ? 'Copy →' : '← Copy';
+    $('move-files').textContent = active === 0 ? 'Move →' : '← Move';
+    $('copy-files').setAttribute('aria-label', `Copy from ${from.toLowerCase()} to ${to.toLowerCase()}`);
+    $('move-files').setAttribute('aria-label', `Move from ${from.toLowerCase()} to ${to.toLowerCase()}`);
+    $('copy-files').disabled = $('move-files').disabled = $('delete-files').disabled = count === 0;
+    $('rename-file').disabled = count !== 1;
+  }
+  function navigate(side, dir, history = true) {
+    const p = panes[side];
+    if (p.dir !== dir) {
+      if (history) { p.back.push(p.dir); p.forward = []; }
+      p.dir = dir; p.selected.clear();
+    }
+    active = side; renderPane(side); updateActions(); $('activate-' + side).focus();
+  }
+  function travel(side, direction) {
+    const p = panes[side], source = p[direction], dest = p[direction === 'back' ? 'forward' : 'back'];
+    let dir;
+    while (source.length && !route(dir = source.pop())) dir = null;
+    if (dir) { dest.push(p.dir); navigate(side, dir, false); }
+    else renderPane(side);
+  }
+  function renderAll() {
+    const focus = document.activeElement;
+    const inPane = focus?.closest('.file-pane');
+    const focusLabel = inPane && focus.getAttribute('aria-label');
+    const focusId = inPane && focus.id;
+    panes.forEach((p, side) => {
+      if (!route(p.dir)) { p.dir = root; p.selected.clear(); }
+      p.back = p.back.filter(n => route(n)); p.forward = p.forward.filter(n => route(n));
+      p.selected = new Set(p.dir.children.filter(n => p.selected.has(n.id)).map(n => n.id));
+      renderPane(side);
+    }); updateActions();
+    if (inPane) {
+      const target = (focusId && $(focusId)) || [...document.querySelectorAll('.file-pane [aria-label]')].find(e => e.getAttribute('aria-label') === focusLabel);
+      (target || $('activate-' + active)).focus();
+    }
+  }
+  function renderPane(side) {
+    const p = panes[side], pane = $('pane-' + side), label = side === 0 ? 'Left' : 'Right';
+    pane.replaceChildren();
+    const heading = el('div', undefined, 'pane-heading');
+    const activateButton = button(label, `Activate ${label.toLowerCase()} pane`, () => activate(side), 'pane-activate');
+    activateButton.id = 'activate-' + side; activateButton.setAttribute('aria-pressed', String(side === active));
+    const count = el('span', undefined, 'pane-count'); count.id = 'count-' + side;
+    heading.append(activateButton, count);
+    const location = el('p', path(p.dir), 'pane-path'); location.id = 'path-' + side;
+    const nav = el('nav', undefined, 'pane-nav'); nav.setAttribute('aria-label', `${label} navigation`);
+    const back = button('←', `${label} back`, () => travel(side, 'back')); back.disabled = !p.back.length;
+    const forward = button('→', `${label} forward`, () => travel(side, 'forward')); forward.disabled = !p.forward.length;
+    const up = button('↑', `${label} parent folder`, () => { const trail = route(p.dir); navigate(side, trail[trail.length - 2]); }); up.disabled = p.dir === root;
+    nav.append(back, forward, up, button('Demo', `${label} demo root`, () => navigate(side, root), 'root-button'));
+    const filterWrap = el('div', undefined, 'pane-filter'), filter = el('input');
+    filter.type = 'search'; filter.placeholder = 'Filter names…'; filter.value = p.filter; filter.id = 'filter-' + side;
+    filter.setAttribute('aria-label', `Filter ${label.toLowerCase()} pane`);
+    filter.oninput = () => { activate(side); p.filter = filter.value; renderList(side); };
+    filterWrap.append(filter);
+    const sortLabel = el('label', 'Sort ', 'pane-sort'), sort = el('select'); sort.setAttribute('aria-label', `Sort ${label.toLowerCase()} pane`);
+    for (const [value, name] of [['name', 'Name A–Z'], ['reverse', 'Name Z–A'], ['type', 'File type'], ['size', 'Size (largest)']]) {
+      const option = el('option', name); option.value = value; sort.append(option);
+    }
+    sort.value = p.sort; sort.onchange = () => { activate(side); p.sort = sort.value; renderList(side); }; sortLabel.append(sort);
+    const list = el('div', undefined, 'file-list'); list.id = 'list-' + side; list.setAttribute('role', 'group'); list.setAttribute('aria-label', `${label} files`);
+    pane.append(heading, location, nav, filterWrap, sortLabel, list); renderList(side);
+  }
+  function fileSize(n) { return n.kind === 'folder' ? n.children.reduce((sum, child) => sum + fileSize(child), 0) : n.kind === 'text' ? new TextEncoder().encode(n.content).length : n.kind === 'archive' ? 2480 : 1843200; }
+  function detail(n) { return n.kind === 'folder' ? `Folder · ${n.children.length} items` : n.kind === 'text' ? `${fileSize(n)} B · text` : n.kind === 'archive' ? 'ZIP · sample' : 'APK · sample'; }
+  function renderList(side) {
+    const p = panes[side], list = $('list-' + side), label = side === 0 ? 'Left' : 'Right'; list.replaceChildren();
+    const items = p.dir.children.filter(n => n.name.toLowerCase().includes(p.filter.toLowerCase()));
+    items.sort((a, b) => {
+      if ((a.kind === 'folder') !== (b.kind === 'folder')) return a.kind === 'folder' ? -1 : 1;
+      if (p.sort === 'size') return fileSize(b) - fileSize(a) || a.name.localeCompare(b.name);
+      if (p.sort === 'type') return a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name) * (p.sort === 'reverse' ? -1 : 1);
+    });
+    for (const n of items) {
+      const row = el('div', undefined, 'file-row'), checkLabel = el('label', undefined, 'file-check'), check = el('input');
+      check.type = 'checkbox'; check.checked = p.selected.has(n.id); check.setAttribute('aria-label', `Select ${n.name} in ${label.toLowerCase()} pane`);
+      check.onchange = () => { active = side; check.checked ? p.selected.add(n.id) : p.selected.delete(n.id); updateActions(); };
+      checkLabel.append(check);
+      const open = button('', `Open ${n.name} in ${label.toLowerCase()} pane`, () => { activate(side); openNode(n, side); }, 'file-open');
+      const name = el('span', undefined, 'file-name');
+      if (n.kind === 'folder') {
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('viewBox', '0 0 24 24');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#folder-icon'); icon.append(use); name.append(icon);
+      }
+      name.append(document.createTextNode(n.name)); open.append(name, el('span', detail(n), 'file-detail'));
+      row.append(checkLabel, open); list.append(row);
+    }
+    if (!items.length) list.append(el('p', p.filter ? 'No matching names. Clear the filter to see all files.' : 'An empty folder. Copy something here or create a folder.', 'empty-files'));
+  }
+  panes.forEach((p, i) => {
+    const pane = el('section', undefined, 'file-pane'); pane.id = 'pane-' + i; pane.setAttribute('aria-label', i === 0 ? 'Left pane' : 'Right pane');
+    pane.addEventListener('focusin', () => activate(i)); $('file-panes').append(pane);
+  });
+  function dialog(title, build, confirm, action) {
+    $('file-dialog-title').textContent = title; $('file-dialog-body').replaceChildren(); $('file-dialog-error').hidden = true;
+    $('file-confirm').textContent = confirm; $('file-confirm').classList.toggle('danger', confirm === 'Delete');
+    fileSubmit = action; build($('file-dialog-body')); $('file-dialog').showModal();
+    ($('file-dialog-body').querySelector('input, select') || $('file-cancel')).focus();
+  }
+  $('file-cancel').onclick = () => $('file-dialog').close();
+  $('file-form').onsubmit = event => {
+    event.preventDefault();
+    try { if (fileSubmit() !== false) $('file-dialog').close(); }
+    catch (e) { $('file-dialog-error').textContent = e.message; $('file-dialog-error').hidden = false; }
+  };
+  function nameInput(body, value, hint) {
+    body.append(el('p', hint)); const label = el('label', 'Name'), input = el('input'); input.id = 'file-name-input'; input.value = value;
+    input.autocomplete = 'off'; input.required = true; label.append(input); body.append(label);
+  }
+  function validName(dir, except = null) {
+    const name = $('file-name-input').value.trim();
+    if (!name || name === '.' || name === '..' || /[\/\\\x00-\x1f]/.test(name)) throw Error('Use a name without slashes or control characters.');
+    if (dir.children.some(n => n !== except && n.name === name)) throw Error('That name already exists. Choose another name.');
+    return name;
+  }
+  $('new-folder').onclick = () => {
+    const dir = panes[active].dir;
+    dialog('New demo folder', b => nameInput(b, '', `Create in ${path(dir)}.`), 'Create folder', () => {
+      const name = validName(dir); dir.children.push(node(name, 'folder', [])); renderAll(); status(`Created ${name} in ${path(dir)} · preview data only.`);
+    });
+  };
+  $('rename-file').onclick = () => {
+    const n = selected()[0], dir = panes[active].dir;
+    dialog(`Rename ${n.name}`, b => nameInput(b, n.name, `In ${path(dir)}. Existing names will not be overwritten.`), 'Rename', () => {
+      const name = validName(dir, n); n.name = name; renderAll(); status(`Renamed to ${name} · preview data only.`);
+    });
+  };
+  $('delete-files').onclick = () => {
+    const entries = selected(), dir = panes[active].dir;
+    dialog(`Delete ${entries.length} demo item${entries.length === 1 ? '' : 's'}?`, b => {
+      b.append(el('p', `${entries.map(n => n.name).join(', ')} — from ${path(dir)}. Folders include their contents. This only removes preview data; reload restores the original samples.`));
+    }, 'Delete', () => {
+      dir.children = dir.children.filter(n => !entries.includes(n)); renderAll(); status(`Deleted ${entries.length} demo item${entries.length === 1 ? '' : 's'}.`);
+    });
+    $('file-cancel').focus();
+  };
+  function clone(n) { return node(n.name, n.kind, n.kind === 'folder' ? n.children.map(clone) : n.content); }
+  function uniqueName(name, reserved) {
+    const dot = name.lastIndexOf('.'), split = dot > 0 ? dot : name.length;
+    let i = 1, result;
+    do { result = `${name.slice(0, split)} (copy${i === 1 ? '' : ' ' + i})${name.slice(split)}`; i++; } while (reserved.has(result));
+    return result;
+  }
+  function transfer(mode) {
+    const entries = selected(), src = panes[active].dir, dest = panes[1 - active].dir;
+    const verb = mode === 'copy' ? 'Copy' : 'Move';
+    if (src === dest) { status('Both panes are in the same folder. Choose a different destination first.'); return; }
+    if (entries.some(n => route(dest).includes(n))) { status('A folder cannot be copied or moved into itself or one of its own subfolders. Choose another destination.'); return; }
+    const conflicts = entries.filter(n => dest.children.some(other => other.name === n.name));
+    dialog(`${verb} ${entries.length} demo item${entries.length === 1 ? '' : 's'}`, b => {
+      b.append(el('p', `${path(src)} → ${path(dest)}`), el('p', entries.map(n => n.name).join(', ')));
+      if (conflicts.length) {
+        b.append(el('p', 'These names already exist. Keep both is the default. Replace removes the destination item, including folder contents.'));
+        conflicts.forEach(n => {
+          const row = el('div', undefined, 'conflict-row'), label = el('label', n.name), choice = el('select');
+          choice.id = 'conflict-' + n.id; choice.setAttribute('aria-label', `Conflict for ${n.name}`);
+          for (const [value, name] of [['keep', 'Keep both'], ['skip', 'Skip'], ['replace', 'Replace destination']]) { const option = el('option', name); option.value = value; choice.append(option); }
+          label.append(choice); row.append(label); b.append(row);
+        });
+        const label = el('label'), check = el('input'); check.type = 'checkbox'; check.id = 'confirm-replace';
+        label.append(check, document.createTextNode(' I confirm replacing any destination items I marked Replace.')); b.append(label);
+      } else b.append(el('p', 'No name conflicts. Review the destination before continuing.'));
+    }, verb + ' items', () => {
+      const choices = new Map(conflicts.map(n => [n.id, $('conflict-' + n.id).value]));
+      if ([...choices.values()].includes('replace') && !$('confirm-replace').checked) throw Error('Confirm replacement, or choose Keep both / Skip. Nothing has changed.');
+      if (entries.some(n => choices.get(n.id) === 'replace' && route(src).includes(dest.children.find(other => other.name === n.name)))) {
+        throw Error('Cannot replace a folder containing the source. Choose Keep both / Skip, or use another destination.');
+      }
+      // Reserve every source name before generating copy names: a later entry must never overwrite an earlier one.
+      const reserved = new Set([...dest.children.map(n => n.name), ...entries.map(n => n.name)]);
+      let count = 0, skipped = 0;
+      for (const n of entries) {
+        const choice = choices.get(n.id);
+        if (choice === 'skip') { skipped++; continue; }
+        let name = n.name;
+        if (choice === 'keep') { name = uniqueName(n.name, reserved); reserved.add(name); }
+        if (choice === 'replace') dest.children = dest.children.filter(other => other.name !== n.name);
+        const item = mode === 'copy' ? clone(n) : n; item.name = name; dest.children.push(item);
+        if (mode === 'move') src.children = src.children.filter(other => other !== n);
+        count++;
+      }
+      panes[active].selected.clear(); renderAll();
+      status(`${mode === 'copy' ? 'Copied' : 'Moved'} ${count} item${count === 1 ? '' : 's'} to ${path(dest)}${skipped ? ` · ${skipped} skipped` : ''} · preview data only.`);
+    });
+  }
+  $('copy-files').onclick = () => transfer('copy'); $('move-files').onclick = () => transfer('move');
+  function openNode(n, side) {
+    if (n.kind === 'folder') { navigate(side, n); return; }
+    if (n.kind !== 'text') { showTool(n.kind, n); return; }
+    editTarget = n; editorValue = n.content;
+    $('text-editor-title').textContent = n.name; $('text-editor-path').textContent = path(n);
+    $('file-text').value = editorValue; $('text-editor-dialog').showModal(); $('file-text').focus();
+  }
+  function cancelEdit() {
+    if ($('file-text').value !== editorValue) { $('discard-edit-dialog').showModal(); $('keep-file-editing').focus(); }
+    else $('text-editor-dialog').close();
+  }
+  $('cancel-file-edit').onclick = cancelEdit;
+  $('text-editor-dialog').addEventListener('cancel', event => { event.preventDefault(); cancelEdit(); });
+  $('keep-file-editing').onclick = () => { $('discard-edit-dialog').close(); $('file-text').focus(); };
+  $('discard-file-edit').onclick = () => { $('discard-edit-dialog').close(); $('text-editor-dialog').close(); };
+  $('text-editor-form').onsubmit = event => {
+    event.preventDefault(); editTarget.content = $('file-text').value; $('text-editor-dialog').close(); renderAll(); status(`Saved ${editTarget.name} in preview data.`);
+  };
+  $('tool-editor').onclick = () => {
+    const entries = selected();
+    if (entries.length === 1 && entries[0].kind === 'text') openNode(entries[0], active);
+    else { status('Open a text filename, or select one text file and choose Text editor. Try README.md in /demo/project.'); document.querySelector('.pane-activate[aria-pressed="true"]').focus(); }
+  };
+  const tools = {
+    archive: {
+      title: 'Archive · sample contents', description: 'starter.zip is illustrative preview data. In Android, browse, test, extract and create archives through the file workspace. This browser does not run an archive engine.',
+      tabs: {
+        Contents: 'starter.zip\n├─ README.md          184 B\n├─ src/\n│  └─ hello.sh         52 B\n└─ theme.json          63 B\n\nIllustrative listing · no archive has been opened or extracted.',
+        Extract: 'In Android: select an archive → Extract to other column.\nReview the destination and resolve name conflicts.\nEncrypted archives may request a password.\n\nPreview state: no extraction started; both demo panes are unchanged.',
+        Create: 'In Android: select files → Create archive in other column.\nChoose the archive format, name and destination.\n\nPreview state: no archive created.'
+      }
+    },
+    apk: {
+      title: 'APK · sample inspection', description: 'veyterm-demo.apk is a fictional package for this preview. Android includes APK / DEX / resource inspection and a Java decompiler; these tools require an actual package in the app.',
+      tabs: {
+        Package: 'Sample package: com.example.veyterm.demo\nSample version: 1.0 (1)\nIllustrative contents:\nAndroidManifest.xml · classes.dex · resources.arsc\n\nNo package was parsed, installed or signed.',
+        Manifest: '<!-- Illustrative manifest, not decoded from an APK -->\n<manifest package="com.example.veyterm.demo">\n  <application android:label="Workspace demo" />\n</manifest>',
+        'DEX / Java': 'In Android: select APK / DEX → Decompile to Java.\nInspect classes and resources in the dedicated tools.\n\nPreview state: no decompilation started. The browser sample contains no executable APK bytes.'
+      }
+    },
+    network: {
+      title: 'Network · connection preview', description: 'Android provides remote connections and HTTP transfer tools. These examples explain the flow; the browser preview does not connect, store credentials or start a server.',
+      tabs: {
+        Remote: 'Example location: sftp://demo.example/workspace\n\nIn Android: Remote connections → choose protocol and host → authenticate → open the remote folder in a pane.\n\nPreview state: disconnected. No request sent.',
+        Transfer: 'In Android: use HTTP transfer to send or receive files.\nReview the network address and stop the transfer service when finished.\n\nPreview state: service stopped. No address or download has been created.',
+        Security: 'Use a host you trust and review its identity in the Android connection flow.\n\nThis preview asks for no password, host permission or filesystem access. Sample file operations remain in this page.'
+      }
+    }
+  };
+  function showTool(kind, target = null) {
+    const data = tools[kind]; $('tool-title').textContent = data.title;
+    $('tool-description').textContent = (target ? `Selected demo item: ${path(target)}. ` : '') + data.description;
+    $('tool-tabs').replaceChildren();
+    Object.entries(data.tabs).forEach(([name, content], i) => {
+      const tab = button(name, name, () => {
+        for (const b of $('tool-tabs').children) b.setAttribute('aria-pressed', String(b === tab));
+        $('tool-detail').textContent = content;
+      }); tab.setAttribute('aria-pressed', String(i === 0)); $('tool-tabs').append(tab);
+      if (!i) $('tool-detail').textContent = content;
+    });
+    $('tool-dialog').showModal(); $('tool-tabs').firstElementChild.focus();
+  }
+  for (const kind of ['archive', 'apk', 'network']) $('tool-' + kind).onclick = () => showTool(kind);
+  $('close-tool').onclick = () => $('tool-dialog').close();
+  // Escape belongs to the current dialog/menu first, then returns from Files.
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !event.defaultPrevented && !activeMenu && !document.querySelector('dialog[open]') && !$('file-workspace').hidden) {
+      event.preventDefault(); showTerminal(); $('toggle-files').focus();
+    }
+  });
+  renderAll();
+}
 </script>
 </body>
 </html>
