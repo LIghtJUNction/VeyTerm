@@ -1,0 +1,52 @@
+[
+  {
+    "coordinate": "com.github.mwiede:jsch:2.28.8",
+    "file": "jsch-2.28.8.jar",
+    "sha256": "2afca1357d816028f2ac33f22407d2488a68406682973949cebb1b8ea6688a8b"
+  },
+  {
+    "coordinate": "commons-net:commons-net:3.13.0",
+    "file": "commons-net-3.13.0.jar",
+    "sha256": "9e88444afadc9467f0bf3d328f93b9538da35a9be05cdee430766e64fddbd6c5"
+  },
+  {
+    "coordinate": "commons-io:commons-io:2.22.0",
+    "file": "commons-io-2.22.0.jar",
+    "sha256": "2b9a7b1f726fb86216dbd2c8321eabe0221dbd5b1be81c18e1cb53811b104758"
+  },
+  {
+    "coordinate": "eu.agno3.jcifs:jcifs-ng:2.1.10",
+    "file": "jcifs-ng-2.1.10.jar",
+    "sha256": "1940332a416644b3b464335d0e0fb12530fb2c1e4cfb57e7d3339b46b2f0af48"
+  },
+  {
+    "coordinate": "org.bouncycastle:bcprov-jdk18on:1.86",
+    "file": "bcprov-jdk18on-1.86.jar",
+    "sha256": "2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f"
+  },
+  {
+    "coordinate": "com.squareup.okhttp3:okhttp:4.12.0",
+    "file": "okhttp-4.12.0.jar",
+    "sha256": "b1050081b14bb7a3a7e55a4d3ef01b5dcfabc453b4573a4fc019767191d5f4e0"
+  },
+  {
+    "coordinate": "org.slf4j:slf4j-api:2.0.17",
+    "file": "slf4j-api-2.0.17.jar",
+    "sha256": "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"
+  },
+  {
+    "coordinate": "org.slf4j:slf4j-nop:2.0.17",
+    "file": "slf4j-nop-2.0.17.jar",
+    "sha256": "3716f83649ec66161a2edefd4f49df34d1dd1c51cdcf941996c6987260f0a829"
+  },
+  {
+    "coordinate": "com.squareup.okio:okio-jvm:3.6.0",
+    "file": "okio-jvm-3.6.0.jar",
+    "sha256": "67543f0736fc422ae927ed0e504b98bc5e269fda0d3500579337cb713da28412"
+  },
+  {
+    "coordinate": "org.jetbrains.kotlin:kotlin-stdlib:1.9.10",
+    "file": "kotlin-stdlib-1.9.10.jar",
+    "sha256": "55e989c512b80907799f854309f3bc7782c5b3d13932442d0379d5c472711504"
+  }
+]

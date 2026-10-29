@@ -10,15 +10,34 @@ confined local directory capability, not the parent's storage/root backend.
 Parent adds these to `app/build.gradle` (not changed in this worktree):
 
 ```groovy
-implementation 'com.github.mwiede:jsch:0.2.21'
-implementation 'commons-net:commons-net:3.11.1'
+implementation 'com.github.mwiede:jsch:2.28.8'
+implementation 'commons-net:commons-net:3.13.0'
+implementation 'commons-io:commons-io:2.22.0'
 implementation 'eu.agno3.jcifs:jcifs-ng:2.1.10'
+// Override jcifs-ng's obsolete 1.76 transitive; do not package both versions.
+implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+implementation 'org.slf4j:slf4j-api:2.0.17'
 implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 // Keep protocol libraries silent: their debug messages can contain authentication material.
-runtimeOnly 'org.slf4j:slf4j-nop:1.7.36'
+runtimeOnly 'org.slf4j:slf4j-nop:2.0.17'
 ```
 
-Retain Java 8 and core-library desugaring, already enabled in this checkout.
+Verified on 2026-10-30 against official release notes and Maven Central metadata.
+JSch's current release is **2.28.8**, superseding the initially proposed 2.28.7;
+its release adds SFTP data, authentication prompt and arithmetic-overflow bounds
+checks. The repository ChangeLog currently stops at 2.28.0, so it alone cannot
+establish the latest release. Commons Net 3.13.0 adds a runtime Commons IO
+transitive ([2.21.0 in its POM](https://repo.maven.apache.org/maven2/commons-net/commons-net/3.13.0/commons-net-3.13.0.pom));
+the tested override here is 2.22.0.
+
+OkHttp 4.12.0 remains the parent's existing integration contract, **not** a claim
+that it is the latest major release (Maven currently lists 5.5.1). SLF4J API/nop
+2.0.17 likewise follows the parent's explicit matched-version pin, not the latest
+2.0.x metadata. This refresh does not migrate to OkHttp 5 or SLF4J alpha releases.
+
+Retain Java 8 and core-library desugaring; the parent selects
+`com.android.tools:desugar_jdk_libs_nio:2.1.5`. SDK compilation here does not
+validate that Gradle desugaring configuration or runtime.
 Resolve only the maintained JSch fork; exclude `com.jcraft:jsch` if another library
 introduces the old artifact (same Java package). Do not add HTTP logging
 interceptors, JSch loggers, or a competing SLF4J binding. No trust-all TLS manager,
@@ -29,35 +48,53 @@ Transitives used by the local checks:
 
 | Coordinate | License / note |
 | --- | --- |
-| `org.slf4j:slf4j-api:1.7.36` | MIT, jcifs-ng API dependency |
-| `org.bouncycastle:bcprov-jdk18on:1.76` | Bouncy Castle license (MIT-style), jcifs-ng dependency |
+| `org.slf4j:slf4j-api:2.0.17` | MIT, jcifs-ng API dependency |
+| `org.bouncycastle:bcprov-jdk18on:1.86` | Bouncy Castle license (MIT-style), explicit override of jcifs-ng 1.76 |
+| `commons-io:commons-io:2.22.0` | Apache-2.0, explicit override of Commons Net transitive |
 | `com.squareup.okio:okio-jvm:3.6.0` | Apache-2.0, OkHttp dependency |
 | `org.jetbrains.kotlin:kotlin-stdlib:1.9.10` | Apache-2.0, local runtime; parent's Kotlin version may resolve newer |
 
 Pinned artifacts were fetched from Maven Central and compiled directly with
-`javac`, not inferred from package names. SHA-256:
+`javac`. The machine-readable test lock is
+[`dependency-pins.json`](../app/src/test/java/com/termux/app/files/remote/dependency-pins.json).
+The runner verifies every SHA-256 before compiling and constructs an explicit
+classpath, so an old JAR left in the directory cannot shadow the verified pin.
+SHA-256:
 
 ```text
-jsch-0.2.21.jar         2330df0841be84eefa7c6ba4b5a2c98faa153855c80a5af418fdedacc2a4bc5b
-commons-net-3.11.1.jar  3bb861274992dba5487de328303745b7085de72694b63a3300be1e057144311e
-jcifs-ng-2.1.10.jar     1940332a416644b3b464335d0e0fb12530fb2c1e4cfb57e7d3339b46b2f0af48
-okhttp-4.12.0.jar       b1050081b14bb7a3a7e55a4d3ef01b5dcfabc453b4573a4fc019767191d5f4e0
-okio-jvm-3.6.0.jar      67543f0736fc422ae927ed0e504b98bc5e269fda0d3500579337cb713da28412
-bcprov-jdk18on-1.76.jar fda85d777aaae168015860b23a77cad9b8d3a1d5c904fda875313427bd560179
+jsch-2.28.8.jar              2afca1357d816028f2ac33f22407d2488a68406682973949cebb1b8ea6688a8b
+commons-net-3.13.0.jar       9e88444afadc9467f0bf3d328f93b9538da35a9be05cdee430766e64fddbd6c5
+commons-io-2.22.0.jar        2b9a7b1f726fb86216dbd2c8321eabe0221dbd5b1be81c18e1cb53811b104758
+jcifs-ng-2.1.10.jar          1940332a416644b3b464335d0e0fb12530fb2c1e4cfb57e7d3339b46b2f0af48
+bcprov-jdk18on-1.86.jar      2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f
+okhttp-4.12.0.jar            b1050081b14bb7a3a7e55a4d3ef01b5dcfabc453b4573a4fc019767191d5f4e0
+slf4j-api-2.0.17.jar         7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832
+slf4j-nop-2.0.17.jar         3716f83649ec66161a2edefd4f49df34d1dd1c51cdcf941996c6987260f0a829
+okio-jvm-3.6.0.jar           67543f0736fc422ae927ed0e504b98bc5e269fda0d3500579337cb713da28412
+kotlin-stdlib-1.9.10.jar     55e989c512b80907799f854309f3bc7782c5b3d13932442d0379d5c472711504
 ```
 
 ### Upstream API and license evidence
 
-- [JSch 0.2.21 source/tag](https://github.com/mwiede/jsch/tree/jsch-0.2.21),
-  [licenses](https://github.com/mwiede/jsch/blob/jsch-0.2.21/LICENSE.txt): revised
+- [JSch 2.28.8 release](https://github.com/mwiede/jsch/releases/tag/jsch-2.28.8),
+  [licenses](https://github.com/mwiede/jsch/blob/jsch-2.28.8/LICENSE.txt): revised
   BSD, with included component BSD/ISC notices. Uses `HostKeyRepository`,
   `Session.connect(int)`, `setTimeout`, `ChannelSftp.ls/lstat/get/put/mkdir/rename/rm/rmdir`.
-- [Commons Net 3.11.1 source](https://github.com/apache/commons-net/tree/rel/commons-net-3.11.1),
-  [Apache license](https://github.com/apache/commons-net/blob/rel/commons-net-3.11.1/LICENSE.txt),
+- [Commons Net release history](https://commons.apache.org/proper/commons-net/changes.html),
+  [Apache license](https://github.com/apache/commons-net/blob/rel/commons-net-3.13.0/LICENSE.txt),
   [FTPS API warning about hostname verification](https://commons.apache.org/proper/commons-net/apidocs/org/apache/commons/net/ftp/FTPSClient.html).
   Uses passive binary transfers, `retrieveFileStream/storeFileStream`,
   `completePendingCommand`, integer data timeout, `FTPSClient(false)`, system
   X509 trust, endpoint checking, `PBSZ 0`, `PROT P`.
+- [Commons IO release history](https://commons.apache.org/proper/commons-io/changes.html):
+  2.22.0 released 2026-04-19, Java 8+; Apache-2.0.
+- [Bouncy Castle 1.86 release](https://www.bouncycastle.org/resources/new-release-bouncy-castle-java-1-86/):
+  released 2026-09-15. Its base classes, JSch, Commons Net and Commons IO were
+  inspected as Java 8 bytecode (major 52). Real signed Samba NTLM transfers below
+  exercise the jcifs-ng override, rather than just linking its crypto classes.
+- [jcifs-ng changelog](https://github.com/AgNO3/jcifs-ng/blob/master/CHANGELOG.txt)
+  and [Maven release metadata](https://repo.maven.apache.org/maven2/eu/agno3/jcifs/jcifs-ng/maven-metadata.xml)
+  still identify 2.1.10 as current.
 - [jcifs-ng 2.1.10 POM](https://github.com/AgNO3/jcifs-ng/blob/jcifs-ng-2.1.10/pom.xml),
   [source license header and implementation](https://github.com/AgNO3/jcifs-ng/blob/jcifs-ng-2.1.10/src/main/java/jcifs/smb/SmbFile.java):
   LGPL-2.1-or-later. Uses per-connection `BaseContext/PropertyConfiguration`,
@@ -209,32 +246,49 @@ Focused runner (no Gradle/bootstrap/download/device/CI):
 ```sh
 python3 app/src/test/java/com/termux/app/files/remote/run_local.py \
   --deps /path/to/pinned-jars \
-  --android-jar /opt/android-sdk/platforms/android-35/android.jar
+  --android-jar /opt/android-sdk/platforms/android-36/android.jar \
+  --lambda-stubs /opt/android-sdk/build-tools/36.0.0/core-lambda-stubs.jar
 ```
 
 Provide the jars listed above (plus SLF4J nop), Python `pyftpdlib==2.1.0`,
 `paramiko==3.5.1`, `pyOpenSSL`, `impacket` (only fixture hash helpers), and local
-`javac/java`, `openssl/keytool`, `smbd`. Optional Python packages can live in the
+`javac/java` (JDK 17+ for this runner), `openssl/keytool`, `smbd`. Optional Python packages can live in the
 supplied dependency directory's `python/`. The runner downloads nothing, uses
 only loopback high ports, temporary Samba databases/config with mandatory
 signing, an ephemeral SSH host key and a one-day local TLS certificate, and
-cleans test directories and fixture processes. No system Samba config/user/password
+cleans test directories and fixture processes. All temporary keys, databases and
+compilation output stay under this worktree's `build/network-refresh/`. No system Samba config/user/password
 is modified. Fixtures use public dummy credentials, not user credentials.
 
-Verified locally: all production Java classes compile at Java 8 source/target
-against Android SDK 35 and the pinned jars. Five protocols complete real socket
+Verified locally: the six platform-independent production classes compile with
+`javac --release 8` (Java 8 APIs and bytecode). All nine production classes also
+compile at Java 8 source/target using **Android SDK 36 as the bootclasspath** plus
+SDK `core-lambda-stubs.jar`; the desktop JDK is not used to fill missing Android
+APIs. The host-JDK suite and a second JVM with
+`-Djdk.util.jar.enableMultiRelease=false` both complete the checks below. The
+latter selects JSch's root Java 8 classes and BC crypto implementations; it is
+not an Android VM or an actual Java 8 runtime. Five protocols complete real socket
 list/stat/mkdir/160003-byte binary upload/download/no-clobber/rename/replace/
 nonempty-delete rejection/file-delete/directory-delete/progress/cancel checks,
 including Unicode/space/#/% filenames, nested configured roots, and rejecting
 listing a regular file.
-SFTP tests literal wildcard filenames and rejects mismatched host keys. FTPS
+SFTP tests literal wildcard filenames and rejects mismatched host keys for both
+RSA and Ed25519 listeners. The second listener permits only
+`curve25519-sha256@libssh.org`, `ssh-ed25519`, `aes128-ctr` and `hmac-sha2-256`.
+Both JVM modes complete real binary transfers against it, covering BC XDH and
+EdDSA operation under the Java 8 base-JAR path. No incompatible provider was
+observed in these local checks; no production provider, global security registry,
+host-key, algorithm-default, or TLS trust change was needed. Android's own
+bootclasspath/provider class loading still needs device acceptance. FTPS
 completes authenticated protected-data transfers with the fixture CA and rejects
 that CA in a fresh untrusted JVM. SSH timeout, active SSH/HTTP cancellation,
 opaque URI/error redaction, HTTP authentication/list/upload/download/limit/
 traversal/symlink/no-clobber/interrupted-upload/stop checks also pass.
 
-Final focused run: **180 assertions passed**, plus the separate fresh-JVM FTPS
-untrusted-certificate rejection check. `git diff --check` passed. Task-owned jars,
+Final focused run: **213 assertions passed in each JVM mode (426 total)**, plus
+the separate fresh-JVM FTPS untrusted-certificate rejection check. A modified-JAR
+negative check also confirms that the lock fails before compilation/fixture startup.
+`git diff --check` passed. Task-owned jars,
 Python packages, generated keys/databases and compile output were removed afterward.
 
 Acceptance remaining for parent:

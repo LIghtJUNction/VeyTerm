@@ -2,6 +2,7 @@
 """Loopback-only protocol fixtures. Needs pyftpdlib, paramiko, impacket (no system changes)."""
 import base64
 import hashlib
+import io
 import getpass
 import subprocess
 import json
@@ -18,6 +19,8 @@ from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.servers import FTPServer
 import paramiko
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
 from impacket.ntlm import compute_lmhash, compute_nthash
 
 logging.disable(logging.CRITICAL)
@@ -99,13 +102,24 @@ class Sftp(paramiko.SFTPServerInterface):
 listener = socket.socket()
 listener.bind(('127.0.0.1', 0)); listener.listen(5)
 sftp_port = listener.getsockname()[1]
+ed_key = paramiko.Ed25519Key(file_obj=io.StringIO(Ed25519PrivateKey.generate().private_bytes(
+    serialization.Encoding.PEM, serialization.PrivateFormat.OpenSSH, serialization.NoEncryption()).decode()))
+ed_listener = socket.socket()
+ed_listener.bind(('127.0.0.1', 0)); ed_listener.listen(5)
+sftp_ed_port = ed_listener.getsockname()[1]
 transports = []
-def sftp_loop():
+def sftp_loop(accepting, host_key, modern_only=False):
     while True:
-        client, _ = listener.accept()
+        client, _ = accepting.accept()
         def serve(sock):
             transport = paramiko.Transport(sock); transports.append(transport)
-            transport.add_server_key(key)
+            transport.add_server_key(host_key)
+            if modern_only:
+                options = transport.get_security_options()
+                options.kex = ('curve25519-sha256@libssh.org',)
+                options.key_types = ('ssh-ed25519',)
+                options.ciphers = ('aes128-ctr',)
+                options.digests = ('hmac-sha2-256',)
             transport.set_subsystem_handler('sftp', paramiko.SFTPServer, Sftp)
             try:
                 transport.start_server(server=SftpAuth())
@@ -113,7 +127,8 @@ def sftp_loop():
             except (paramiko.SSHException, EOFError): pass
             finally: transport.close()
         threading.Thread(target=serve, args=(client,), daemon=True).start()
-threading.Thread(target=sftp_loop, daemon=True).start()
+threading.Thread(target=sftp_loop, args=(listener, key), daemon=True).start()
+threading.Thread(target=sftp_loop, args=(ed_listener, ed_key, True), daemon=True).start()
 
 # Real Samba enforces signing; impacket's server is not used as acceptance evidence.
 smb_port = available_port()
@@ -164,7 +179,8 @@ for _ in range(50):
     except OSError:
         if smb_process.poll() is not None: raise RuntimeError('Local Samba fixture failed to start')
         time.sleep(.05)
-(workspace / 'ports.json').write_text(json.dumps({'ftp': ftp_port, 'ftps': ftps_port, 'sftp': sftp_port, 'smb': smb_port,
+(workspace / 'ports.json').write_text(json.dumps({'ftp': ftp_port, 'ftps': ftps_port, 'sftp': sftp_port, 'smb': smb_port, 'sftpEd25519': sftp_ed_port,
+    'ed25519HostKey': 'SHA256:' + base64.b64encode(hashlib.sha256(ed_key.asbytes()).digest()).decode().rstrip('='),
     'hostKey': 'SHA256:' + base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode().rstrip('=')}))
 print('Local FTP/FTPS/SFTP/Samba fixtures ready', flush=True)
 signal.pause()

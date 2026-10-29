@@ -177,6 +177,11 @@ public final class RemoteRoundTripChecks {
         roundtrip(connection(RemoteFiles.Protocol.FTP,Integer.parseInt(args[1]),""));
         roundtrip(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[2]),args[4]));
         denied(()->RemoteFiles.connect(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[2]),"SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),new RemoteFiles.Cancellation()),"wrong SSH host key rejected");
+        // A successful socket roundtrip requires curve25519 + Ed25519 on this listener.
+        // Disabling multi-release JARs in the second JVM exercises JSch's Java 8 BC implementations.
+        roundtrip(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[6]),args[7]));
+        denied(()->RemoteFiles.connect(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[6]),"SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),new RemoteFiles.Cancellation()),"wrong Ed25519 host key rejected");
+        System.out.println("PASS SFTP curve25519/Ed25519/AES-CTR/HMAC-SHA256 with pinned host key");
         roundtrip(connection(RemoteFiles.Protocol.SMB,Integer.parseInt(args[3]),""));
         roundtrip(connection(RemoteFiles.Protocol.FTPS,Integer.parseInt(args[5]),""));
         Path web=Files.createDirectory(workspace.resolve("dav")); HttpServer dav=dav(web);
