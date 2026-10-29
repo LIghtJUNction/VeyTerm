@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dec_surface">@color/vey_surface_panel</color>
+    <color name="dec_text">@color/vey_text_primary</color>
+    <color name="dec_secondary">@color/vey_text_secondary</color>
+    <color name="dec_control">@color/vey_surface_elevated</color>
+</resources>

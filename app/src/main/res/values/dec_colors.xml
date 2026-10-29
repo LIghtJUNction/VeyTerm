@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dec_surface">#FAF8F5</color>
+    <color name="dec_text">#292524</color>
+    <color name="dec_secondary">#655E58</color>
+    <color name="dec_control">#EFEAE4</color>
+</resources>
