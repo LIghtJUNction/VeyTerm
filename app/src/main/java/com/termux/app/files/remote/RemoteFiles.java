@@ -108,7 +108,7 @@ public final class RemoteFiles implements Closeable {
         RemoteFiles files = new RemoteFiles(b, cancellation);
         cancellation.attach(files);
         try { cancellation.check(); b.connect(); cancellation.check(); return files; }
-        catch (Exception e) { files.close(); throw files.failure("connect"); }
+        catch (Exception e) { files.close(); throw files.failure("connect", e); }
     }
     private interface Op<T> { T run() throws Exception; }
     private <T> T invoke(String operation, Op<T> action) throws IOException {
@@ -118,14 +118,46 @@ public final class RemoteFiles implements Closeable {
         try { T result = action.run(); cancellation.check(); return result; }
         catch (UnsupportedOperationException e) {
             cancellation.check();
-            throw new IOException("Remote " + operation + " is not supported by this protocol or server");
+            throw new Failure("Remote " + operation + " is not supported by this protocol or server", e);
         }
-        catch (Exception e) { throw failure(operation); }
+        catch (Exception e) { throw failure(operation, e); }
     }
-    private IOException failure(String operation) {
+    private IOException failure(String operation) { return failure(operation, null); }
+    private IOException failure(String operation, Throwable source) {
         try { cancellation.check(); } catch (IOException e) { return e; }
         // Never attach third-party causes: URLs, server replies and credentials may be in their messages.
-        return new IOException("Remote " + operation + " failed; check access, server availability and trust settings");
+        return new Failure("Remote " + operation + " failed; check access, server availability and trust settings", source);
+    }
+    /** Keeps only bounded code symbols, never the original exception object or its messages. */
+    private static final class Failure extends IOException {
+        private final String diagnostic;
+        Failure(String message, Throwable source) {
+            super(message);
+            diagnostic = safeDiagnostic(source);
+        }
+    }
+    /** Machine diagnostic: exception classes and code frames only; safe to log with generic UI errors. */
+    public static String safeDiagnostic(Throwable source) {
+        StringBuilder result = new StringBuilder();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>());
+        for (int depth = 0; source != null && depth < 8 && seen.add(source); depth++, source = source.getCause()) {
+            if (result.length() > 0) result.append(" caused-by ");
+            if (source instanceof Failure) {
+                result.append(((Failure) source).diagnostic);
+                break;
+            }
+            result.append(codeSymbol(source.getClass().getName()));
+            StackTraceElement[] frames = source.getStackTrace();
+            for (int i = 0; i < Math.min(frames.length, 4); i++) {
+                StackTraceElement frame = frames[i];
+                result.append('@').append(codeSymbol(frame.getClassName())).append('.')
+                    .append(codeSymbol(frame.getMethodName())).append(':').append(frame.getLineNumber());
+            }
+        }
+        return result.length() == 0 ? "unknown" : result.substring(0, Math.min(result.length(), 3500));
+    }
+    private static String codeSymbol(String value) {
+        return value != null && value.length() <= 160 && value.matches("[a-zA-Z0-9_.$<>-]+") ? value.replace('$', '_').replace('<', '_').replace('>', '_') : "redacted";
     }
     public List<Entry> list(String path) throws IOException { String p = path(path); return invoke("list", () -> backend.list(p)); }
     public Entry stat(String path) throws IOException { String p = path(path); return invoke("stat", () -> backend.stat(p)); }
@@ -170,19 +202,19 @@ public final class RemoteFiles implements Closeable {
             @Override public int read(byte[] b, int off, int len) throws IOException {
                 try { cancellation.check(); int n = in.read(b,off,len); cancellation.check();
                     if (n > 0 && progress != null) progress.transferred(count += n, -1); return n;
-                } catch (Exception e) { throw failure("read"); }
+                } catch (Exception e) { throw failure("read", e); }
             }
             @Override public long skip(long n) throws IOException {
                 byte[] buffer=new byte[(int)Math.min(Math.max(n,0),8192)]; long count=0;
                 while (count<n) { int got=read(buffer,0,(int)Math.min(n-count,buffer.length)); if (got<0) break; count+=got; } return count;
             }
-            @Override public int available() throws IOException { try { cancellation.check(); return in.available(); } catch (Exception e) { throw failure("read"); } }
+            @Override public int available() throws IOException { try { cancellation.check(); return in.available(); } catch (Exception e) { throw failure("read", e); } }
             @Override public synchronized void reset() throws IOException { throw new IOException("Remote streams do not support reset"); }
             @Override public boolean markSupported() { return false; }
             @Override public synchronized void mark(int limit) { }
             @Override public void close() throws IOException {
                 if (done) return; done = true;
-                try { in.close(); } catch (Exception e) { throw failure("read completion"); }
+                try { in.close(); } catch (Exception e) { throw failure("read completion", e); }
                 finally { streams.remove(this); streamOpen = false; }
             }
         };
@@ -199,12 +231,12 @@ public final class RemoteFiles implements Closeable {
             @Override public void write(byte[] b, int off, int len) throws IOException {
                 try { cancellation.check(); out.write(b,off,len); cancellation.check();
                     if (progress != null) progress.transferred(count += len, -1);
-                } catch (Exception e) { throw failure("write"); }
+                } catch (Exception e) { throw failure("write", e); }
             }
-            @Override public void flush() throws IOException { try { cancellation.check(); out.flush(); } catch (Exception e) { throw failure("flush"); } }
+            @Override public void flush() throws IOException { try { cancellation.check(); out.flush(); } catch (Exception e) { throw failure("flush", e); } }
             @Override public void close() throws IOException {
                 if (done) return; done = true;
-                try { out.close(); cancellation.check(); } catch (Exception e) { throw failure("write completion"); }
+                try { out.close(); cancellation.check(); } catch (Exception e) { throw failure("write completion", e); }
                 finally { streams.remove(this); streamOpen = false; }
             }
         };

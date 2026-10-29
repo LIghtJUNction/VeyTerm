@@ -323,7 +323,60 @@ public final class RemoteRoundTripChecks {
         } finally { executor.shutdownNow(); stalledDav.stop(0); }
         System.out.println("PASS active SSH/HTTP cancellation and stalled SSH timeout");
     }
+    private static void diagnostics() throws Exception {
+        String secret = "https://user:local-fixture-only@private.invalid/path?token=secret";
+        IOException leaf = new IOException(secret);
+        leaf.setStackTrace(new StackTraceElement[]{new StackTraceElement("org.example.Transport", "send", secret, 73)});
+        IOException outer = new IOException(secret, leaf);
+        outer.setStackTrace(new StackTraceElement[]{new StackTraceElement("org.example.Client$Worker", "<init>", secret, 12)});
+        String expected = RemoteFiles.safeDiagnostic(outer);
+        check(expected.contains("java.io.IOException@org.example.Transport.send:73"), "nested cause code frame");
+        check(expected.contains("org.example.Client_Worker._init_:12"), "code symbols fit host report filter");
+        check(!expected.contains(secret) && !expected.contains("local-fixture-only") && !expected.contains("private.invalid"), "diagnostic omits messages and file names");
+        check(expected.matches("[A-Za-z0-9_./:@,\\[\\] -]*"), "diagnostic accepted by host instrumentation filter");
+        java.lang.reflect.Constructor<RemoteFiles> constructor = RemoteFiles.class.getDeclaredConstructor(RemoteFiles.Backend.class, RemoteFiles.Cancellation.class);
+        constructor.setAccessible(true);
+        RemoteFiles.Backend backend = (RemoteFiles.Backend) java.lang.reflect.Proxy.newProxyInstance(RemoteFiles.Backend.class.getClassLoader(), new Class<?>[]{RemoteFiles.Backend.class},
+            (proxy, method, arguments) -> {
+                if (method.getName().equals("close")) return null;
+                if (method.getName().equals("read")) return new InputStream() {
+                    @Override public int read() throws IOException { throw outer; }
+                    @Override public void close() throws IOException { throw outer; }
+                };
+                if (method.getName().equals("write")) return new OutputStream() {
+                    @Override public void write(int value) throws IOException { throw outer; }
+                    @Override public void flush() throws IOException { throw outer; }
+                    @Override public void close() throws IOException { throw outer; }
+                };
+                throw outer;
+            });
+        try (RemoteFiles remote = constructor.newInstance(backend, new RemoteFiles.Cancellation())) {
+            Task[] failures = {() -> remote.list("/"), () -> remote.stat("/"),
+                () -> { try (InputStream in = remote.read("/test")) { in.read(); } },
+                () -> { try (InputStream in = remote.read("/test")) { in.available(); } },
+                () -> { remote.read("/test").close(); },
+                () -> { try (OutputStream out = remote.write("/test", true)) { out.write(1); } },
+                () -> { try (OutputStream out = remote.write("/test", true)) { out.flush(); } },
+                () -> { remote.write("/test", true).close(); }};
+            for (Task task : failures) {
+                try { task.run(); throw new AssertionError("backend failure expected"); }
+                catch (IOException safe) {
+                    check(safe.getCause() == null, "original cause not retained");
+                    check(RemoteFiles.safeDiagnostic(safe).equals(expected), "operation and stream failures retain safe code chain");
+                    StringWriter trace = new StringWriter(); safe.printStackTrace(new PrintWriter(trace));
+                    check(!trace.toString().contains("local-fixture-only") && !trace.toString().contains("private.invalid"), "standard exception log redacted");
+                }
+            }
+        }
+        leaf.initCause(outer);
+        check(RemoteFiles.safeDiagnostic(outer).length() < 3501, "cyclic causes bounded");
+        IOException invalid = new IOException(secret);
+        invalid.setStackTrace(new StackTraceElement[]{new StackTraceElement(secret, secret, secret, 1)});
+        check(!RemoteFiles.safeDiagnostic(invalid).contains("private.invalid"), "invalid code symbols redacted");
+        System.out.println("PASS safe diagnostics for nested causes, stream failures, redaction and cycles");
+    }
     public static void main(String[] args) throws Exception {
+        diagnostics();
         if (args.length==2 && args[0].equals("reject-ftps")) {
             denied(()->RemoteFiles.connect(connection(RemoteFiles.Protocol.FTPS,Integer.parseInt(args[1]),""),new RemoteFiles.Cancellation()),"untrusted certificate rejected");
             System.out.println("PASS FTPS rejects untrusted certificate"); return;

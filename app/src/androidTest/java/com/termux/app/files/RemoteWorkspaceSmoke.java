@@ -134,7 +134,7 @@ public final class RemoteWorkspaceSmoke extends Instrumentation {
                     }
                     status(name, assertions - before, "PASS");
                 } catch (Throwable failure) {
-                    // Class/method symbols locate BC/bootclasspath linkage failures without leaking messages.
+                    // Bounded class/frame chains locate failures without reading exception messages.
                     String safe = stage + ":" + symbol(failure);
                     errors.add(safe);
                     status(name, assertions - before, safe);
@@ -201,17 +201,24 @@ public final class RemoteWorkspaceSmoke extends Instrumentation {
         String dir = "/" + prefix + name;
         String original = dir + "/你好 space #%.bin", renamed = dir + "/移动 #%.bin";
         RemoteFiles.Cancellation cancel = new RemoteFiles.Cancellation();
-        stage = name + "/engine";
+        stage = name + "/engine-connect";
         // Use the decrypted configuration for actual authenticated traffic.
         try (RemoteFiles remote = RemoteFiles.connect(store.load(c.id), cancel)) {
+            stage = name + "/engine-root-stat";
             check(remote.stat("/").directory, "root-stat");
+            stage = name + "/engine-mkdir-list";
             remote.mkdir(dir);
             check(has(remote.list("/"), dir), "mkdir-list");
             long[] progress = {0};
+            stage = name + "/engine-upload";
             check(remote.upload(original, new ByteArrayInputStream(data), false, (n, total) -> progress[0] = n) == data.length, "upload-count");
+            stage = name + "/engine-upload-stat";
             check(progress[0] == data.length && remote.stat(original).size == data.length, "upload-progress-stat");
+            stage = name + "/engine-unicode-list";
             check(has(remote.list(dir), original), "unicode-list");
+            stage = name + "/engine-read";
             try (InputStream in = remote.read(original)) { check(Arrays.equals(data, readBounded(in, 200000)), "binary-identical"); }
+            stage = name + "/engine-no-clobber";
             rejected(() -> { try (OutputStream out = remote.write(original, false)) { out.write(1); } }, "no-clobber");
             stage = name + "/metadata";
             if (endpoint.getBoolean("chmod")) {
@@ -304,17 +311,9 @@ public final class RemoteWorkspaceSmoke extends Instrumentation {
         try (OutputStream out = new FileOutputStream(file)) { out.write(data); }
     }
     private static String symbol(Throwable failure) {
-        String name = failure.getClass().getSimpleName();
-        if (failure instanceof AssertionError && failure.getMessage() != null
-                && failure.getMessage().matches("[a-z0-9-]+")) name += ":" + failure.getMessage();
-        for (StackTraceElement frame : failure.getStackTrace()) {
-            String cls = frame.getClassName();
-            if (cls.startsWith("com.termux.") || cls.startsWith("org.bouncycastle.") || cls.startsWith("jcifs.")) {
-                return name + "@" + cls + "." + frame.getMethodName() + ":" + frame.getLineNumber();
-            }
-        }
-        return name;
+        return RemoteFiles.safeDiagnostic(failure);
     }
+
     private void status(String name, int count, String error) {
         Bundle result = new Bundle();
         result.putString("name", name); result.putInt("assertions", count); result.putString("error", error);
