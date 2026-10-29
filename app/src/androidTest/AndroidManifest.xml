@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.veyterm" />
+    </queries>
+    <application>
+        <!-- These components exist only in the test APK, in the test UID/process. -->
+        <provider
+            android:name="com.termux.app.files.SmokeDocumentsProvider"
+            android:authorities="com.veyterm.fileworkspacesmoke.test.documents.20261030"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:process=":file_workspace_fixture">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+        <!-- Only begin/end calls, checked against the target UID; no file endpoints. -->
+        <provider
+            android:name="com.termux.app.files.SmokeDocumentsProvider$Control"
+            android:authorities="com.veyterm.fileworkspacesmoke.test.documents.20261030.control"
+            android:exported="true"
+            android:process=":file_workspace_fixture" />
+    </application>
+    <instrumentation
+        android:name="com.termux.app.files.FileWorkspaceSmoke"
+        android:targetPackage="com.veyterm"
+        android:functionalTest="true"
+        android:handleProfiling="false" />
+</manifest>
