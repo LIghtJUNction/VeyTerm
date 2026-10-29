@@ -79,12 +79,14 @@ kotlin-stdlib-1.9.10.jar     55e989c512b80907799f854309f3bc7782c5b3d13932442d037
 - [JSch 2.28.8 release](https://github.com/mwiede/jsch/releases/tag/jsch-2.28.8),
   [licenses](https://github.com/mwiede/jsch/blob/jsch-2.28.8/LICENSE.txt): revised
   BSD, with included component BSD/ISC notices. Uses `HostKeyRepository`,
-  `Session.connect(int)`, `setTimeout`, `ChannelSftp.ls/lstat/get/put/mkdir/rename/rm/rmdir`.
+  `Session.connect(int)`, `setTimeout`, `ChannelSftp.ls/lstat/get/put/mkdir/rename/rm/rmdir`,
+  `chmod/readlink/symlink/setMtime`.
 - [Commons Net release history](https://commons.apache.org/proper/commons-net/changes.html),
   [Apache license](https://github.com/apache/commons-net/blob/rel/commons-net-3.13.0/LICENSE.txt),
   [FTPS API warning about hostname verification](https://commons.apache.org/proper/commons-net/apidocs/org/apache/commons/net/ftp/FTPSClient.html).
   Uses passive binary transfers, `retrieveFileStream/storeFileStream`,
-  `completePendingCommand`, integer data timeout, `FTPSClient(false)`, system
+  `completePendingCommand`, `setModificationTime` (MFMT), `sendSiteCommand` (CHMOD),
+  integer data timeout, `FTPSClient(false)`, system
   X509 trust, endpoint checking, `PBSZ 0`, `PROT P`.
 - [Commons IO release history](https://commons.apache.org/proper/commons-io/changes.html):
   2.22.0 released 2026-04-19, Java 8+; Apache-2.0.
@@ -100,7 +102,7 @@ kotlin-stdlib-1.9.10.jar     55e989c512b80907799f854309f3bc7782c5b3d13932442d037
   LGPL-2.1-or-later. Uses per-connection `BaseContext/PropertyConfiguration`,
   separate `NtlmPasswordAuthenticator`, `SmbFile`, `SmbFileInputStream`,
   `openOutputStream(false, flags, access, sharing)` with `O_EXCL` for create-only,
-  `renameTo(target,false)`, and `CIFSContext.close()`. A per-URL handler preserves
+  `renameTo(target,false)`, `setLastModified`, and `CIFSContext.close()`. A per-URL handler preserves
   raw Unicode/space/#/% path characters because jcifs consumes URL.getPath literally. SMB202 minimum, SMB311
   maximum, mandatory signing, DFS disabled. Reparse attribute `0x400` is reported
   as `symbolicLink`; deletion of observed reparse points is refused.
@@ -196,6 +198,67 @@ upload/download remain caller-owned. Progress reports cumulative bytes and
 `total=-1` (unknown); use stat size if the parent needs a determinate total.
 Copy/move/conflict policy and recursive traversal remain parent-owned.
 
+### Metadata and symbolic links
+
+The parent can delegate its `FileAccess` methods to these exact public signatures;
+the worker does not change `RemoteFileAccess` or shared filesystem sources:
+
+```java
+public String permissions(String path) throws IOException;
+public void chmod(String path, int mode) throws IOException;
+public String readLink(String path) throws IOException;
+public void symlink(String target, String linkPath) throws IOException;
+public void setModified(String path, long epochMillis) throws IOException;
+```
+
+| Operation | SFTP | FTP / explicit FTPS | SMB | WebDAV |
+| --- | --- | --- | --- | --- |
+| `permissions` | `lstat`: `0644 · uid 1000 · gid 1000` | Unsupported | Unsupported | Unsupported |
+| `chmod` | Unix mode bits | Optional `SITE CHMOD` | Unsupported | Unsupported |
+| `readLink` / `symlink` | Raw Unix link target | Unsupported | Unsupported | Unsupported |
+| `setModified` | SFTP v3 `setMtime` | Optional UTC `MFMT` | `SmbFile.setLastModified` | Unsupported |
+
+Backend defaults throw `UnsupportedOperationException`; the public engine converts
+that to a redacted `IOException` explicitly saying the operation is unsupported.
+FTP 500/502/504 responses to metadata commands take that same path. Other server
+errors fail with the usual redacted `IOException`; no command failure is silently
+reported as success. SFTP permission attributes without mode or uid/gid are also
+explicitly unsupported rather than displaying invented zero values.
+
+All `path` / `linkPath` arguments retain the existing absolute, connection-root-
+relative validation: parent traversal, backslashes, NUL and control characters
+(including CR/LF) are rejected. Mutating metadata/link operations also reject the
+connection root. `mode` is an integer in `0000..07777`, including special bits;
+FTP emits four ASCII octal digits. Invalid arguments raise
+`IllegalArgumentException` before sending protocol commands.
+
+The **target** argument is stored link text, not a virtual path. Relative paths,
+`..`, absolute server paths, Unicode, wildcards, backslashes and CR/LF are kept
+verbatim; only null, empty and NUL-containing targets are rejected. JSch glob
+quoting applies to both target and link filename without changing stored text.
+`readLink` returns that text unchanged, so the parent can copy an SFTP link with
+`symlink(readLink(source), destination)`, including dangling links. `stat`, listing
+and `permissions` inspect links without following the final component. Configured
+roots are logical prefixes, not server-side chroots; link targets are neither
+rebased nor confined by the client.
+
+Times are nonnegative Unix epoch milliseconds. SFTP truncates to whole seconds,
+accepts through `4294967295999` ms (uint32 seconds, in 2106), and refuses overflow.
+Both `stat` and listing interpret uint32 mtimes correctly after 2038. FTP truncates
+to seconds and formats UTC independently of the device locale/time zone, with a
+four-digit year (through `253402300799999` ms); server support/range can be narrower.
+SMB retains milliseconds where the server does; signed FILETIME conversion
+overflow is rejected. jcifs-ng 2.1.10 encodes a zero time as "leave unchanged", so
+SMB `setModified(path, 0)` explicitly fails as unsupported instead of claiming to
+have set 1970-01-01. SFTP and FTP accept epoch zero.
+
+`chmod` and `setModified` refuse observed leaf symlinks/reparse points, matching
+the native permission policy's requirement to address the target explicitly.
+These are path-based protocol operations: preflight cannot prevent a concurrent
+server-side path/link swap or following intermediate links. Cancellation, stream
+exclusion, connection deadlines, pinned SSH keys, FTPS trust and mandatory SMB
+signing use the existing engine behavior.
+
 The entire connection record (including username, password, host and root) is
 AES-GCM encrypted to `noBackupFilesDir/remote-connections/<id>.gcm`, with a random
 IV and ID authenticated as AAD. Only the key alias is fixed. Keystore failures,
@@ -259,6 +322,11 @@ signing, an ephemeral SSH host key and a one-day local TLS certificate, and
 cleans test directories and fixture processes. All temporary keys, databases and
 compilation output stay under this worktree's `build/network-refresh/`. No system Samba config/user/password
 is modified. Fixtures use public dummy credentials, not user credentials.
+Java, javac and keytool run serially with `-Xmx256m -XX:+UseSerialGC`, and Java's
+temporary directory points inside the task's build directory. This harness stays
+at its existing source path and runs with the standalone JDK runner; it uses
+`com.sun.net.httpserver` and must be excluded from Android Gradle unit-test sources
+by the parent integration.
 
 Verified locally: the six platform-independent production classes compile with
 `javac --release 8` (Java 8 APIs and bytecode). All nine production classes also
@@ -285,16 +353,33 @@ that CA in a fresh untrusted JVM. SSH timeout, active SSH/HTTP cancellation,
 opaque URI/error redaction, HTTP authentication/list/upload/download/limit/
 traversal/symlink/no-clobber/interrupted-upload/stop checks also pass.
 
-Final focused run: **213 assertions passed in each JVM mode (426 total)**, plus
-the separate fresh-JVM FTPS untrusted-certificate rejection check. A modified-JAR
-negative check also confirms that the lock fails before compilation/fixture startup.
-`git diff --check` passed. Task-owned jars,
-Python packages, generated keys/databases and compile output were removed afterward.
+Final focused metadata run on 2026-10-30: **1165 assertions passed in each JVM mode
+(2330 total)**, retaining the earlier protocol/HTTP regression checks, plus the
+separate fresh-JVM FTPS untrusted-certificate rejection check. Added checks use
+real sockets and independently inspect the fixture filesystem: SFTP file/directory
+permissions, UID/GID formatting, nofollow stat/list/permissions, existing and dangling
+symlink copies, directory-link deletion, literal wildcard paths, raw Unicode/CR/LF/
+backslash/absolute/relative targets, uint32 time boundaries through 2106 and overflow
+rejection; FTP/FTPS `SITE CHMOD` including `0000`, UTC `MFMT` at epoch zero and 2040,
+and a second FTP server that rejects both optional commands; real signed Samba
+file/directory millisecond timestamps, explicit epoch-zero rejection and overflow
+protection. New operations also exercise path/NUL/CRLF injection rejection, mode
+bounds, connection-root protection, active-stream exclusion, cancellation, explicit
+unsupported operations and redacted errors.
+
+A modified-JAR negative check confirms that the lock fails before compilation/
+fixture startup. The unchanged lock file SHA-256 is
+`0c4e63ba83787bcfb876259a79afe9e05d87283795da60c59653c367686f3172`.
+`git diff --check` passed. Task-owned jars, Python packages, generated keys/databases
+and compile output were removed afterward.
 
 Acceptance remaining for parent:
 
 1. No Android build, D8/R8, emulator/device operation, or live activity launch was
-   performed. AndroidKeyStore save/load/tamper/key-invalidation and descriptor
+   performed by this metadata worker. Parent APK/test-APK builds and their Gradle
+   host-test exclusions are separate integration evidence; this worktree does not
+   establish installed-APK runtime acceptance or `RemoteFileAccess` delegation.
+   AndroidKeyStore save/load/tamper/key-invalidation and descriptor
    root operations require actual Android acceptance; SDK compilation is not
    runtime evidence. UI rotation recreates the picker and safely cancels current
    I/O instead of restoring a network session. Persistent background sharing is

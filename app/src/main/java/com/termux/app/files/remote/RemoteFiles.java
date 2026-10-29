@@ -84,6 +84,11 @@ public final class RemoteFiles implements Closeable {
         void mkdir(String path) throws Exception;
         void rename(String from, String to) throws Exception;
         void delete(String path) throws Exception;
+        default String permissions(String path) throws Exception { throw new UnsupportedOperationException(); }
+        default void chmod(String path, int mode) throws Exception { throw new UnsupportedOperationException(); }
+        default String readLink(String path) throws Exception { throw new UnsupportedOperationException(); }
+        default void symlink(String target, String linkPath) throws Exception { throw new UnsupportedOperationException(); }
+        default void setModified(String path, long epochMillis) throws Exception { throw new UnsupportedOperationException(); }
     }
     private final Backend backend;
     private final Cancellation cancellation;
@@ -111,6 +116,10 @@ public final class RemoteFiles implements Closeable {
         if (closed) throw new IOException("Remote connection closed");
         if (streamOpen) throw new IOException("Close the current remote stream first");
         try { T result = action.run(); cancellation.check(); return result; }
+        catch (UnsupportedOperationException e) {
+            cancellation.check();
+            throw new IOException("Remote " + operation + " is not supported by this protocol or server");
+        }
         catch (Exception e) { throw failure(operation); }
     }
     private IOException failure(String operation) {
@@ -120,6 +129,29 @@ public final class RemoteFiles implements Closeable {
     }
     public List<Entry> list(String path) throws IOException { String p = path(path); return invoke("list", () -> backend.list(p)); }
     public Entry stat(String path) throws IOException { String p = path(path); return invoke("stat", () -> backend.stat(p)); }
+    /** SFTP lstat mode/owner information: "0644 · uid 1000 · gid 1000". */
+    public String permissions(String path) throws IOException { String p = path(path); return invoke("permissions", () -> backend.permissions(p)); }
+    /** Unix permission bits, including special bits (0000..07777). Refuses observed symlinks. */
+    public void chmod(String path, int mode) throws IOException {
+        String p = mutable(path);
+        if (mode < 0 || mode > 07777) throw new IllegalArgumentException("Invalid Unix permission mode");
+        invoke("chmod", () -> { backend.chmod(p, mode); return null; });
+    }
+    /** Returns the stored target verbatim, without following it or mapping it into the configured root. */
+    public String readLink(String path) throws IOException { String p = path(path); return invoke("readLink", () -> backend.readLink(p)); }
+    /** Target is a Unix link payload, not a virtual path; relative/absolute targets are preserved. */
+    public void symlink(String target, String linkPath) throws IOException {
+        String p = mutable(linkPath);
+        if (target == null || target.isEmpty() || target.indexOf('\0') >= 0)
+            throw new IllegalArgumentException("Invalid symbolic link target");
+        invoke("symlink", () -> { backend.symlink(target, p); return null; });
+    }
+    /** Milliseconds since the Unix epoch. SFTP/FTP truncate to seconds; unsupported writes fail. */
+    public void setModified(String path, long epochMillis) throws IOException {
+        String p = mutable(path);
+        if (epochMillis < 0) throw new IllegalArgumentException("Invalid modification time");
+        invoke("setModified", () -> { backend.setModified(p, epochMillis); return null; });
+    }
     public void mkdir(String path) throws IOException { String p = mutable(path); invoke("mkdir", () -> { backend.mkdir(p); return null; }); }
     public void rename(String from, String to) throws IOException {
         String a = mutable(from), b = mutable(to);

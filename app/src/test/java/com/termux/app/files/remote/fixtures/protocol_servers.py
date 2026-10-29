@@ -53,6 +53,11 @@ Ftps.tls_control_required = True
 Ftps.tls_data_required = True
 ftps = FTPServer(('127.0.0.1', 0), Ftps)
 ftps_port = ftps.socket.getsockname()[1]
+class NoMetadata(Ftp):
+    def ftp_MFMT(self, path, timeval): self.respond('502 MFMT unavailable')
+    def ftp_SITE_CHMOD(self, path, mode): self.respond('502 SITE CHMOD unavailable')
+no_metadata = FTPServer(('127.0.0.1', 0), NoMetadata)
+no_metadata_port = no_metadata.socket.getsockname()[1]
 threading.Thread(target=ftp.serve_forever, kwargs={'timeout': .1}, daemon=True).start()
 
 key = paramiko.RSAKey.generate(2048)
@@ -63,8 +68,9 @@ class SftpAuth(paramiko.ServerInterface):
     def check_channel_request(self, kind, channel):
         return paramiko.OPEN_SUCCEEDED if kind == 'session' else paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 class Sftp(paramiko.SFTPServerInterface):
-    def local(self, path):
-        target = (root / path.lstrip('/')).resolve()
+    def local(self, path, follow=True):
+        raw = root / path.lstrip('/')
+        target = raw.resolve() if follow or raw == root else raw.parent.resolve() / raw.name
         target.relative_to(root)
         return target
     def list_folder(self, path):
@@ -77,7 +83,18 @@ class Sftp(paramiko.SFTPServerInterface):
     def stat(self, path):
         try: return paramiko.SFTPAttributes.from_stat(self.local(path).stat())
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
-    lstat = stat
+    def lstat(self, path):
+        try: return paramiko.SFTPAttributes.from_stat(self.local(path, follow=False).lstat())
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
+    def readlink(self, path):
+        try: return os.readlink(self.local(path, follow=False))
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
+    def symlink(self, target_path, path):
+        try: os.symlink(target_path, self.local(path, follow=False)); return paramiko.SFTP_OK
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
+    def chattr(self, path, attr):
+        try: paramiko.SFTPServer.set_file_attr(self.local(path), attr); return paramiko.SFTP_OK
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def open(self, path, flags, attr):
         try:
             fd = os.open(self.local(path), flags, 0o600)
@@ -88,16 +105,16 @@ class Sftp(paramiko.SFTPServerInterface):
             return handle
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def mkdir(self, path, attr):
-        try: self.local(path).mkdir(); return paramiko.SFTP_OK
+        try: self.local(path, follow=False).mkdir(); return paramiko.SFTP_OK
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def rmdir(self, path):
-        try: self.local(path).rmdir(); return paramiko.SFTP_OK
+        try: self.local(path, follow=False).rmdir(); return paramiko.SFTP_OK
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def remove(self, path):
-        try: self.local(path).unlink(); return paramiko.SFTP_OK
+        try: self.local(path, follow=False).unlink(); return paramiko.SFTP_OK
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def rename(self, source, dest):
-        try: self.local(source).rename(self.local(dest)); return paramiko.SFTP_OK
+        try: self.local(source, follow=False).rename(self.local(dest, follow=False)); return paramiko.SFTP_OK
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
 listener = socket.socket()
 listener.bind(('127.0.0.1', 0)); listener.listen(5)
@@ -179,7 +196,7 @@ for _ in range(50):
     except OSError:
         if smb_process.poll() is not None: raise RuntimeError('Local Samba fixture failed to start')
         time.sleep(.05)
-(workspace / 'ports.json').write_text(json.dumps({'ftp': ftp_port, 'ftps': ftps_port, 'sftp': sftp_port, 'smb': smb_port, 'sftpEd25519': sftp_ed_port,
+(workspace / 'ports.json').write_text(json.dumps({'ftp': ftp_port, 'ftpNoMetadata': no_metadata_port, 'ftps': ftps_port, 'sftp': sftp_port, 'smb': smb_port, 'sftpEd25519': sftp_ed_port,
     'ed25519HostKey': 'SHA256:' + base64.b64encode(hashlib.sha256(ed_key.asbytes()).digest()).decode().rstrip('='),
     'hostKey': 'SHA256:' + base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode().rstrip('=')}))
 print('Local FTP/FTPS/SFTP/Samba fixtures ready', flush=True)

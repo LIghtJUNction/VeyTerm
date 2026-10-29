@@ -31,19 +31,21 @@ work_parent = repo / 'build/network-refresh'
 work_parent.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='roundtrip-', dir=work_parent) as working:
     run = Path(working)
+    jvm = ['-Xmx256m', '-XX:+UseSerialGC', '-Djava.io.tmpdir=' + str(run)]
+    compiler_jvm = ['-J' + option for option in jvm]
     classes = run / 'classes'
     all_java = sorted(source.glob('*.java'))
     engine = [f for f in all_java if f.stem not in ('AndroidTransferRoot', 'ConnectionStore', 'RemoteConnectionsActivity')]
-    subprocess.run(['javac', '--release', '8', '-cp', cp, '-d', str(classes), *map(str, engine)], check=True)
+    subprocess.run(['javac', *compiler_jvm, '--release', '8', '-cp', cp, '-d', str(classes), *map(str, engine)], check=True)
     print('PASS Java 8 API/bytecode compilation (engine)', flush=True)
     if args.android_jar:
         boot = os.pathsep.join(map(str, (args.android_jar.resolve(), args.lambda_stubs.resolve())))
-        subprocess.run(['javac', '-source', '8', '-target', '8', '-Xlint:-options', '-bootclasspath', boot,
+        subprocess.run(['javac', *compiler_jvm, '-source', '8', '-target', '8', '-Xlint:-options', '-bootclasspath', boot,
                         '-cp', cp, '-d', str(run / 'android-classes'), *map(str, all_java)], check=True)
         print('PASS Android SDK bootclasspath/Java 8 compilation (all production sources)', flush=True)
-    subprocess.run(['javac', '-cp', cp + os.pathsep + str(classes), '-d', str(classes), str(here / 'RemoteRoundTripChecks.java')], check=True)
+    subprocess.run(['javac', *compiler_jvm, '-cp', cp + os.pathsep + str(classes), '-d', str(classes), str(here / 'RemoteRoundTripChecks.java')], check=True)
     subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(run / 'key.pem'), '-out', str(run / 'cert.pem'), '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    subprocess.run(['keytool', '-importcert', '-noprompt', '-alias', 'fixture', '-file', str(run / 'cert.pem'), '-keystore', str(run / 'trust.p12'), '-storepass', 'fixture-store-only'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run(['keytool', *compiler_jvm, '-importcert', '-noprompt', '-alias', 'fixture', '-file', str(run / 'cert.pem'), '-keystore', str(run / 'trust.p12'), '-storepass', 'fixture-store-only'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     env = os.environ.copy()
     env['PYTHONPATH'] = str(deps / 'python') + os.pathsep + env.get('PYTHONPATH', '')
     env['PYTHONDONTWRITEBYTECODE'] = '1'
@@ -57,15 +59,16 @@ with tempfile.TemporaryDirectory(prefix='roundtrip-', dir=work_parent) as workin
         ports = json.loads((run / 'ports.json').read_text())
         runtime_cp = str(classes) + os.pathsep + cp
         main = 'com.termux.app.files.remote.RemoteRoundTripChecks'
-        subprocess.run(['java', '-cp', runtime_cp, main, 'reject-ftps', str(ports['ftps'])], check=True, timeout=20)
+        subprocess.run(['java', *jvm, '-cp', runtime_cp, main, 'reject-ftps', str(ports['ftps'])], check=True, timeout=20)
         for label, options in [('host-jdk', []), ('java8-base-jar', ['-Djdk.util.jar.enableMultiRelease=false'])]:
             workspace = run / label
             workspace.mkdir()
             print('Running real protocol suite: ' + label, flush=True)
-            subprocess.run(['java', *options, '-Djavax.net.ssl.trustStore=' + str(run / 'trust.p12'),
+            subprocess.run(['java', *jvm, *options, '-Djavax.net.ssl.trustStore=' + str(run / 'trust.p12'),
                             '-Djavax.net.ssl.trustStorePassword=fixture-store-only', '-cp', runtime_cp, main,
                             str(workspace), str(ports['ftp']), str(ports['sftp']), str(ports['smb']),
-                            ports['hostKey'], str(ports['ftps']), str(ports['sftpEd25519']), ports['ed25519HostKey']],
+                            ports['hostKey'], str(ports['ftps']), str(ports['sftpEd25519']), ports['ed25519HostKey'],
+                            str(run / 'root'), str(ports['ftpNoMetadata'])],
                            check=True, timeout=90)
     finally:
         fixture.terminate()

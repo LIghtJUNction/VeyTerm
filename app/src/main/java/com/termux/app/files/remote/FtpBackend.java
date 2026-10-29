@@ -4,6 +4,7 @@ import org.apache.commons.net.ftp.*;
 import javax.net.ssl.*;
 import java.io.*;
 import java.security.KeyStore;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 final class FtpBackend implements RemoteFiles.Backend {
@@ -29,8 +30,24 @@ final class FtpBackend implements RemoteFiles.Backend {
         if (ftp instanceof FTPSClient) { ((FTPSClient)ftp).execPBSZ(0); ((FTPSClient)ftp).execPROT("P"); }
         if (!ftp.changeWorkingDirectory(config.root)) throw new IOException();
     }
-    private String p(String path) { return RemoteFiles.actual(config,path); }
+    private String p(String path) { return RemoteFiles.actual(config,RemoteFiles.path(path)); }
     private void require(boolean ok) throws IOException { if (!ok) throw new IOException(); }
+    private void requireMetadata(boolean ok) throws IOException {
+        if (!ok && (ftp.getReplyCode()==500 || ftp.getReplyCode()==502 || ftp.getReplyCode()==504))
+            throw new UnsupportedOperationException();
+        require(ok);
+    }
+    @Override public void chmod(String path, int mode) throws Exception {
+        if (stat(path).symbolicLink) throw new IOException();
+        requireMetadata(ftp.sendSiteCommand("CHMOD " + String.format(Locale.ROOT,"%04o",mode) + " " + p(path)));
+    }
+    @Override public void setModified(String path, long epochMillis) throws Exception {
+        // MFMT requires a four-digit UTC year, never a locale-specific or overflowing date.
+        if (epochMillis > 253402300799999L || stat(path).symbolicLink) throw new IOException();
+        SimpleDateFormat utc=new SimpleDateFormat("yyyyMMddHHmmss",Locale.ROOT);
+        utc.setTimeZone(TimeZone.getTimeZone("UTC"));
+        requireMetadata(ftp.setModificationTime(p(path),utc.format(new Date(epochMillis))));
+    }
     private RemoteFiles.Entry entry(String path, FTPFile f) { return new RemoteFiles.Entry(path,f.isDirectory(),f.isSymbolicLink(),f.getSize(),f.getTimestamp()==null ? 0 : f.getTimestamp().getTimeInMillis()); }
     @Override public List<RemoteFiles.Entry> list(String path) throws Exception {
         require(ftp.changeWorkingDirectory(p(path)));

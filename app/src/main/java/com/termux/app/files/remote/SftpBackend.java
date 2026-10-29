@@ -39,8 +39,9 @@ final class SftpBackend implements RemoteFiles.Backend {
         if (!ch.stat(p("/")).isDir()) throw new IOException();
     }
     // JSch treats SFTP strings as glob patterns, even when they are exact file names.
-    private String p(String path) { return RemoteFiles.actual(config,path).replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?").replace("[", "\\["); }
-    private RemoteFiles.Entry entry(String p, SftpATTRS a) { return new RemoteFiles.Entry(p,a.isDir(),a.isLink(),a.getSize(),((long)a.getMTime())*1000); }
+    private static String literal(String value) { return value.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?").replace("[", "\\["); }
+    private String p(String path) { return literal(RemoteFiles.actual(config,path)); }
+    private RemoteFiles.Entry entry(String p, SftpATTRS a) { return new RemoteFiles.Entry(p,a.isDir(),a.isLink(),a.getSize(),(a.getMTime() & 0xffffffffL)*1000); }
     @Override public List<RemoteFiles.Entry> list(String path) throws Exception {
         if (!channel.stat(p(path)).isDir()) throw new IOException();
         List<RemoteFiles.Entry> result = new ArrayList<>();
@@ -51,6 +52,25 @@ final class SftpBackend implements RemoteFiles.Backend {
         return result;
     }
     @Override public RemoteFiles.Entry stat(String path) throws Exception { return entry(path,channel.lstat(p(path))); }
+    @Override public String permissions(String path) throws Exception {
+        SftpATTRS a=channel.lstat(p(path));
+        // SFTP v3 attributes are optional; never present missing values as real metadata.
+        if ((a.getFlags() & 6) != 6) throw new UnsupportedOperationException();
+        return String.format(Locale.ROOT,"%04o · uid %d · gid %d",a.getPermissions() & 07777,a.getUId() & 0xffffffffL,a.getGId() & 0xffffffffL);
+    }
+    private void requireNonLink(String path) throws Exception {
+        if (channel.lstat(p(path)).isLink()) throw new IOException();
+    }
+    @Override public void chmod(String path, int mode) throws Exception { requireNonLink(path); channel.chmod(mode,p(path)); }
+    @Override public String readLink(String path) throws Exception { return channel.readlink(p(path)); }
+    @Override public void symlink(String target, String linkPath) throws Exception { channel.symlink(literal(target),p(linkPath)); }
+    @Override public void setModified(String path, long epochMillis) throws Exception {
+        long seconds=epochMillis/1000;
+        if (seconds > 0xffffffffL) throw new IOException();
+        requireNonLink(path);
+        // JSch's int represents the protocol's uint32 seconds, including 2038..2106.
+        channel.setMtime(p(path),(int)seconds);
+    }
     @Override public InputStream read(String path) throws Exception { return channel.get(p(path)); }
     @Override public OutputStream write(String path, boolean replace) throws Exception {
         if (!replace) {

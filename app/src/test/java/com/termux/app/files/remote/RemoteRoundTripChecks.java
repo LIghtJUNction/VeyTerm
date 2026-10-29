@@ -11,11 +11,19 @@ import java.util.concurrent.*;
 /** Plain JVM integration harness, no Gradle/bootstrap/device. Assertions use real loopback sockets. */
 public final class RemoteRoundTripChecks {
     private static int checks;
+    private static Path protocolRoot;
     private static void check(boolean ok,String description) { checks++; if (!ok) throw new AssertionError(description); }
     private interface Task { void run() throws Exception; }
     private static void denied(Task action,String description) throws Exception {
         try { action.run(); throw new AssertionError(description); }
         catch (IOException | IllegalArgumentException expected) { checks++; check(!expected.toString().contains("local-fixture-only"),"redacted error"); check(expected.getCause()==null,"no credential-bearing cause"); }
+    }
+    private static void unsupported(Task action,String description) throws Exception {
+        try { action.run(); throw new AssertionError(description); }
+        catch (IOException expected) {
+            check(expected.getMessage().contains("not supported"),description+" explicitly unsupported");
+            check(expected.getCause()==null && !expected.toString().contains("local-fixture-only"),"unsupported error redacted");
+        }
     }
     private static RemoteFiles.Connection connection(RemoteFiles.Protocol protocol,int port,String hostKey) {
         return new RemoteFiles.Connection("fixture-id", "fixture", protocol,"127.0.0.1",port,protocol==RemoteFiles.Protocol.SMB ? "/fixture" : "/",protocol==RemoteFiles.Protocol.SMB ? System.getProperty("user.name") : "network-fixture","local-fixture-only","",hostKey,5000,protocol==RemoteFiles.Protocol.FTP || protocol==RemoteFiles.Protocol.WEBDAV);
@@ -37,7 +45,18 @@ public final class RemoteRoundTripChecks {
             try (RemoteFiles inside=RemoteFiles.connect(nested,new RemoteFiles.Cancellation())) {
                 check(inside.list("/").stream().anyMatch(e->e.path.equals("/你好 space #%.bin")),"connection-root-relative listing");
                 check(inside.stat("/你好 space #%.bin").size==bytes.length,"connection-root-relative stat");
+                if (config.protocol==RemoteFiles.Protocol.SFTP) {
+                    inside.chmod("/你好 space #%.bin",0640);
+                    check(inside.permissions("/你好 space #%.bin").startsWith("0640 · uid "),"nested permission path");
+                    inside.symlink("你好 space #%.bin","/nested-link");
+                    check(inside.readLink("/nested-link").equals("你好 space #%.bin"),"nested link target stays relative");
+                    check(inside.stat("/nested-link").symbolicLink,"nested lstat nofollow");
+                    inside.delete("/nested-link");
+                    inside.setModified("/你好 space #%.bin",2208988800000L);
+                    check(inside.stat("/你好 space #%.bin").modified==2208988800000L,"nested mtime path");
+                }
             }
+            metadata(remote,config,original,protocolRoot.resolve(dir.substring(1)).resolve("你好 space #%.bin"));
             denied(()->{ try (OutputStream out=remote.write(original,false)) { out.write(0); } },"no clobber");
             denied(()->remote.delete(dir),"nonempty directory preserved");
             ByteArrayOutputStream downloaded=new ByteArrayOutputStream();
@@ -54,9 +73,148 @@ public final class RemoteRoundTripChecks {
                 check(remote.stat(glob).size==bytes.length,"literal wildcard filename"); remote.delete(glob);
             }
             token.cancel(); denied(()->remote.list("/"),"cancel prevents further I/O");
+            denied(()->remote.permissions("/"),"cancel prevents permissions");
+            denied(()->remote.chmod("/cancelled",0600),"cancel prevents chmod");
+            denied(()->remote.readLink("/cancelled"),"cancel prevents readLink");
+            denied(()->remote.symlink("target","/cancelled"),"cancel prevents symlink");
+            denied(()->remote.setModified("/cancelled",1000),"cancel prevents setModified");
         }
         check(!config.location("/a b").contains("network-fixture"),"opaque URI excludes user");
         System.out.println("PASS "+config.protocol+" list/stat/read/write/mkdir/rename/delete/progress/cancellation");
+    }
+    private static void metadata(RemoteFiles remote,RemoteFiles.Connection config,String path,Path physical) throws Exception {
+        for (String bad:new String[]{"relative","/../escape","/bad\r\nDELE /victim","/bad\0tail"}) {
+            denied(()->remote.permissions(bad),"permissions rejects unsafe path");
+            denied(()->remote.chmod(bad,0600),"chmod rejects unsafe path");
+            denied(()->remote.readLink(bad),"readLink rejects unsafe path");
+            denied(()->remote.symlink("target",bad),"symlink rejects unsafe link path");
+            denied(()->remote.setModified(bad,1000),"setModified rejects unsafe path");
+        }
+        for (int mode:new int[]{-1,010000,Integer.MAX_VALUE}) denied(()->remote.chmod(path,mode),"chmod rejects out-of-range mode");
+        for (String target:new String[]{null,"","bad\0target"}) denied(()->remote.symlink(target,path+".link"),"reject invalid link payload");
+        denied(()->remote.chmod("/",0600),"chmod protects connection root");
+        denied(()->remote.symlink("target","/"),"symlink protects connection root");
+        denied(()->remote.setModified("/",1000),"setModified protects connection root");
+        denied(()->remote.setModified(path,-1),"negative modification time");
+        try (InputStream in=remote.read(path)) {
+            denied(()->remote.permissions(path),"metadata refuses open stream");
+            denied(()->remote.chmod(path,0600),"chmod refuses open stream");
+            denied(()->remote.readLink(path),"readLink refuses open stream");
+            denied(()->remote.symlink("target",path+".link"),"symlink refuses open stream");
+            denied(()->remote.setModified(path,1000),"setModified refuses open stream");
+            check(in.readAllBytes().length==160003,"stream remains readable after refused metadata calls");
+        }
+        if (config.protocol==RemoteFiles.Protocol.SFTP) {
+            String owner=" · uid "+Files.getAttribute(physical,"unix:uid")+" · gid "+Files.getAttribute(physical,"unix:gid");
+            for (int mode:new int[]{0000,0640,0751,01750,07777,0600}) {
+                remote.chmod(path,mode);
+                check(remote.permissions(path).equals(String.format(Locale.ROOT,"%04o",mode)+owner),"SFTP octal/uid/gid roundtrip");
+                check(((Integer)Files.getAttribute(physical,"unix:mode") & 07777)==mode,"SFTP chmod changes actual Unix mode");
+            }
+            for (long millis:new long[]{0,1700000123456L,2147483647000L,2147483648000L,2208988800123L,4294967295999L}) {
+                remote.setModified(path,millis);
+                long seconds=millis/1000*1000;
+                check(remote.stat(path).modified==seconds,"SFTP unsigned uint32 mtime roundtrip");
+                check(Files.getLastModifiedTime(physical).toMillis()==seconds,"SFTP mtime reaches filesystem");
+                check(remote.list(RemoteFiles.parent(path)).stream().anyMatch(e->e.path.equals(path) && e.modified==seconds),"SFTP listing unsigned mtime");
+            }
+            denied(()->remote.setModified(path,4294967296000L),"SFTP uint32 overflow rejected");
+            denied(()->remote.setModified(path,Long.MAX_VALUE),"SFTP long overflow rejected");
+            check(remote.stat(path).modified==4294967295000L,"overflow does not wrap mtime");
+            remote.chmod(RemoteFiles.parent(path),0750);
+            check(remote.permissions(RemoteFiles.parent(path)).startsWith("0750"),"SFTP directory permissions");
+            remote.setModified(RemoteFiles.parent(path),2208988800000L);
+            check(remote.stat(RemoteFiles.parent(path)).modified==2208988800000L,"SFTP directory mtime");
+            check(Files.getLastModifiedTime(physical.getParent()).toMillis()==2208988800000L,"SFTP actual directory mtime");
+            sftpLinks(remote,path,physical);
+        } else {
+            unsupported(()->remote.permissions(path),"permissions");
+            unsupported(()->remote.readLink(path),"readLink");
+            unsupported(()->remote.symlink("../你好\n*?\\target",path+".link"),"symlink");
+            if (config.protocol==RemoteFiles.Protocol.FTP || config.protocol==RemoteFiles.Protocol.FTPS) {
+                for (int mode:new int[]{0000,0640,0751,0600}) {
+                    remote.chmod(path,mode);
+                    check(((Integer)Files.getAttribute(physical,"unix:mode") & 07777)==mode,"FTP SITE CHMOD permission roundtrip");
+                }
+                remote.setModified(path,0);
+                check(Files.getLastModifiedTime(physical).toMillis()==0,"FTP MFMT Unix epoch zero");
+                Locale oldLocale=Locale.getDefault(); TimeZone oldZone=TimeZone.getDefault();
+                try {
+                    Locale.setDefault(new Locale("ar","EG")); TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Honolulu"));
+                    remote.setModified(path,2208988800456L);
+                } finally { Locale.setDefault(oldLocale); TimeZone.setDefault(oldZone); }
+                check(Files.getLastModifiedTime(physical).toMillis()==2208988800000L,"FTP MFMT UTC seconds including 2040");
+                denied(()->remote.setModified(path,Long.MAX_VALUE),"FTP rejects non-four-digit year");
+            } else if (config.protocol==RemoteFiles.Protocol.SMB) {
+                unsupported(()->remote.chmod(path,0640),"SMB chmod");
+                remote.setModified(path,2208988800123L);
+                check(remote.stat(path).modified==2208988800123L,"Samba mtime roundtrip including milliseconds and 2040");
+                check(Files.getLastModifiedTime(physical).toMillis()==2208988800123L,"SMB changes actual filesystem mtime");
+                unsupported(()->remote.setModified(path,0),"jcifs cannot write Unix epoch zero");
+                check(remote.stat(path).modified==2208988800123L,"SMB epoch zero is not silently ignored");
+                denied(()->remote.setModified(path,Long.MAX_VALUE),"SMB FILETIME overflow rejected");
+                remote.setModified(RemoteFiles.parent(path),2208988800123L);
+                check(remote.stat(RemoteFiles.parent(path)).modified==2208988800123L,"Samba directory mtime roundtrip");
+                check(Files.getLastModifiedTime(physical.getParent()).toMillis()==2208988800123L,"SMB changes actual directory mtime");
+            } else {
+                unsupported(()->remote.chmod(path,0640),"WebDAV chmod");
+                unsupported(()->remote.setModified(path,1000),"WebDAV setModified");
+            }
+        }
+        System.out.println("PASS "+config.protocol+" metadata/links/validation");
+    }
+    private static void sftpLinks(RemoteFiles remote,String path,Path physical) throws Exception {
+        String parent=RemoteFiles.parent(path), link=path+".link", copy=path+".copy";
+        String name=physical.getFileName().toString();
+        remote.symlink(name,link);
+        check(remote.stat(link).symbolicLink && !remote.stat(link).directory,"SFTP lstat file link nofollow");
+        check(remote.list(parent).stream().anyMatch(e->e.path.equals(link) && e.symbolicLink && !e.directory),"SFTP listing nofollow");
+        check(remote.readLink(link).equals(name),"SFTP readLink returns raw target");
+        check(Files.readSymbolicLink(physical.resolveSibling(name+".link")).toString().equals(name),"actual Unix link target");
+        remote.symlink(remote.readLink(link),copy);
+        check(remote.stat(copy).symbolicLink && remote.readLink(copy).equals(name),"SFTP copy preserves symlink target");
+        ByteArrayOutputStream target=new ByteArrayOutputStream(); remote.download(copy,target,null);
+        check(target.size()==160003,"copied relative link resolves to original target");
+        denied(()->remote.chmod(link,0777),"chmod refuses symbolic link");
+        denied(()->remote.setModified(link,1000),"mtime refuses symbolic link");
+        check(remote.permissions(path).startsWith("0600"),"link chmod did not modify target");
+        check(remote.stat(path).modified==4294967295000L,"link mtime did not modify target");
+        check(remote.permissions(link).startsWith("0777"),"permissions lstat nofollow");
+        denied(()->remote.readLink(path),"readLink rejects regular file");
+        denied(()->remote.symlink("different",copy),"link creation no clobber");
+        check(remote.readLink(copy).equals(name),"existing link target preserved");
+        remote.delete(link); remote.delete(copy);
+        remote.symlink(".",link);
+        check(remote.stat(link).symbolicLink && !remote.stat(link).directory,"directory link lstat nofollow");
+        remote.delete(link); check(remote.stat(parent).directory,"delete directory link preserves directory");
+        for (String raw:new String[]{"../missing 你好\nline\r*?[x]\\tail","/absolute/../你好*?\\tail","./"+name}) {
+            remote.symlink(raw,link);
+            check(remote.stat(link).symbolicLink,"dangling or relative link lstat");
+            check(remote.readLink(link).equals(raw),"Unicode/newline/glob/backslash/absolute target preserved verbatim");
+            remote.symlink(remote.readLink(link),copy);
+            check(remote.readLink(copy).equals(raw),"copy arbitrary Unix link payload");
+            remote.delete(link); remote.delete(copy);
+        }
+        String glob=parent+"/literal*[?].link";
+        remote.symlink(name,glob); check(remote.readLink(glob).equals(name),"literal wildcard link path"); remote.delete(glob);
+        glob=parent+"/literal*[?].file";
+        remote.upload(glob,new ByteArrayInputStream(new byte[]{7}),false,null);
+        remote.chmod(glob,0640); check(remote.permissions(glob).startsWith("0640"),"literal wildcard chmod and permissions");
+        remote.setModified(glob,2147483648000L); check(remote.stat(glob).modified==2147483648000L,"literal wildcard setModified");
+        remote.delete(glob);
+        check(remote.stat(path).size==160003,"link deletion preserves target");
+    }
+    private static void ftpUnsupported(int port) throws Exception {
+        try (RemoteFiles remote=RemoteFiles.connect(connection(RemoteFiles.Protocol.FTP,port,""),new RemoteFiles.Cancellation())) {
+            String path="/no-metadata.bin"; remote.upload(path,new ByteArrayInputStream(new byte[]{1}),false,null);
+            Path physical=protocolRoot.resolve(path.substring(1));
+            long before=Files.getLastModifiedTime(physical).toMillis(); int mode=(Integer)Files.getAttribute(physical,"unix:mode");
+            unsupported(()->remote.setModified(path,1000),"server rejects MFMT");
+            unsupported(()->remote.chmod(path,0640),"server rejects SITE CHMOD");
+            check(Files.getLastModifiedTime(physical).toMillis()==before && (Integer)Files.getAttribute(physical,"unix:mode")==mode,"unsupported metadata writes leave file unchanged");
+            check(remote.stat(path).size==1,"FTP remains usable after unsupported commands"); remote.delete(path);
+        }
+        System.out.println("PASS FTP optional MFMT/SITE CHMOD rejection");
     }
     private static HttpServer dav(Path root) throws IOException {
         HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
@@ -174,6 +332,7 @@ public final class RemoteRoundTripChecks {
         denied(()->RemoteFiles.child("/","../escape"),"child traversal");
         denied(()->RemoteFiles.path("/a\r\nDELE /"),"FTP command injection");
         Path workspace=Paths.get(args[0]).toAbsolutePath();
+        protocolRoot=Paths.get(args[8]);
         roundtrip(connection(RemoteFiles.Protocol.FTP,Integer.parseInt(args[1]),""));
         roundtrip(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[2]),args[4]));
         denied(()->RemoteFiles.connect(connection(RemoteFiles.Protocol.SFTP,Integer.parseInt(args[2]),"SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),new RemoteFiles.Cancellation()),"wrong SSH host key rejected");
@@ -184,6 +343,7 @@ public final class RemoteRoundTripChecks {
         System.out.println("PASS SFTP curve25519/Ed25519/AES-CTR/HMAC-SHA256 with pinned host key");
         roundtrip(connection(RemoteFiles.Protocol.SMB,Integer.parseInt(args[3]),""));
         roundtrip(connection(RemoteFiles.Protocol.FTPS,Integer.parseInt(args[5]),""));
+        ftpUnsupported(Integer.parseInt(args[9]));
         Path web=Files.createDirectory(workspace.resolve("dav")); HttpServer dav=dav(web);
         try { roundtrip(connection(RemoteFiles.Protocol.WEBDAV,dav.getAddress().getPort(),"")); } finally { dav.stop(0); }
         transfer(Files.createDirectory(workspace.resolve("http")));

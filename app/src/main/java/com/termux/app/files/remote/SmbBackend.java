@@ -51,6 +51,16 @@ final class SmbBackend implements RemoteFiles.Backend {
         return result;
     }
     @Override public RemoteFiles.Entry stat(String path) throws Exception { try (SmbFile f=file(path,false)) { if (!f.exists()) throw new FileNotFoundException(); return entry(path,f); } }
+    @Override public void setModified(String path, long epochMillis) throws Exception {
+        // jcifs encodes zero as "leave unchanged", so it cannot represent Unix epoch zero here.
+        if (epochMillis==0) throw new UnsupportedOperationException();
+        // jcifs converts Unix milliseconds to signed 100-nanosecond FILETIME ticks.
+        if (epochMillis > Long.MAX_VALUE/10000-11644473600000L) throw new IOException();
+        try (SmbFile f=file(path,false)) {
+            if (!f.exists() || (f.getAttributes() & 0x400)!=0) throw new IOException();
+            f.setLastModified(epochMillis);
+        }
+    }
     @Override public InputStream read(String path) throws Exception {
         SmbFile f=file(path,false);
         try { return new FilterInputStream(new SmbFileInputStream(f)) { @Override public void close() throws IOException { try { super.close(); } finally { f.close(); } } }; }
