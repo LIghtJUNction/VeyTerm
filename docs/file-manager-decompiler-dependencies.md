@@ -66,6 +66,7 @@ Primary references: [release](https://github.com/skylot/jadx/releases/tag/v1.5.6
 | `com.android.tools.smali:smali-dexlib2:3.0.9` | Relocated fork required by those diagnostics |
 | `com.android.tools.smali:smali-util:3.0.9` | Relocated fork utility classes |
 | **existing** `org.slf4j:slf4j-api:2.0.17` | Shared logging API; no desktop binding |
+| `org.jetbrains:annotations:23.0.0` | Supplies JADX API metadata including ApiStatus.Internal for R8; replaces the older Kotlin transitive artifact |
 | **existing** `com.google.guava:guava:27.1-jre` | Shared terminal cleanup requires the JRE artifact's MoreFiles/RecursiveDeleteOption |
 | **existing** `com.google.guava:failureaccess:1.0.1` | Guava runtime |
 | **existing** `org.smali:dexlib2:2.5.2` | DEX string/reference index for global search |
