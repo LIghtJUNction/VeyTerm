@@ -5,6 +5,9 @@
     android:sharedUserId="${TERMUX_PACKAGE_NAME}"
     android:sharedUserLabel="@string/shared_user_label">
 
+    <!-- Shizuku is disabled before API 24; the terminal and other file stores retain API 21. -->
+    <uses-sdk tools:overrideLibrary="rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl" />
+
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -47,6 +50,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="false"
         android:theme="@style/Theme.TermuxApp.DayNight.DarkActionBar"
+        android:usesCleartextTraffic="true"
         tools:targetApi="m">
 
         <activity
@@ -95,6 +99,30 @@
             android:parentActivityName=".app.TermuxActivity"
             android:resizeableActivity="true"
             tools:targetApi="n" />
+
+        <activity android:name=".app.files.ui.FileManagerActivity" android:exported="false"
+            android:launchMode="singleTop" android:theme="@style/fm_WorkspaceTheme" />
+        <activity android:name=".app.files.editor.TextEditorActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".app.files.editor.HexEditorActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".app.files.editor.FileViewerActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" />
+        <activity android:name=".app.files.editor.FileCompareActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" />
+        <activity android:name=".app.files.decompile.DecompiledJavaActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".app.files.apk.ApkToolsActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme"
+            android:configChanges="keyboardHidden|orientation|screenSize" android:windowSoftInputMode="adjustResize" />
+        <receiver android:name=".app.files.apk.ApkInstallStatusReceiver" android:enabled="true" android:exported="false" />
+        <activity android:name=".app.files.remote.RemoteConnectionsActivity" android:exported="false" android:theme="@style/fm_WorkspaceTheme" />
+        <service android:name=".app.files.ui.FileTaskService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.workspace.files"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/workspace_file_paths" />
+        </provider>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.apktools.files"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/apk_file_paths" />
+        </provider>
+        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false" android:enabled="@bool/shizuku_available" android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" tools:replace="android:enabled" />
 
         <activity
             android:name=".app.activities.SettingsActivity"

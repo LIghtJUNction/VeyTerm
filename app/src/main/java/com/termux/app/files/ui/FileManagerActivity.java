@@ -65,6 +65,7 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
     private long conflictId = -1;
     private String conflictUri;
     private boolean shift;
+    private boolean compactChrome;
     private int background, panel, selected, text, muted, accent;
 
     @Override public void onCreate(Bundle saved) {
@@ -76,6 +77,7 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         text = getResources().getColor(R.color.vey_text_primary);
         muted = getResources().getColor(R.color.vey_text_secondary);
         accent = getResources().getColor(R.color.vey_accent);
+        compactChrome = getResources().getConfiguration().screenHeightDp < 500;
         model = (WorkspaceModel) getFragmentManager().findFragmentByTag("fm_workspace");
         boolean fresh = model == null;
         if (fresh) {
@@ -91,14 +93,14 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
                 model.active = saved.getInt("fm_active", 0) == 1 ? 1 : 0;
             } else if (getIntent().getStringExtra("file_path") != null) {
                 File requested = new File(getIntent().getStringExtra("file_path"));
-                // Opening a particular file is handled by FileTools; this extra opens its containing folder.
-                File parent = requested.getParentFile();
+                File parent = requested.isDirectory() ? requested : requested.getParentFile();
                 if (parent != null) model.panes[0] = new PaneState(localDirectory(parent));
             }
             getFragmentManager().beginTransaction().add(model, "fm_workspace").commit();
             getFragmentManager().executePendingTransactions();
         }
         jobs = FileJobs.get(this);
+        FileTools.restoreState(this, saved);
         buildWorkspace();
         if (fresh) refreshPanels();
         else renderPanels();
@@ -126,6 +128,7 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
 
     @Override protected void onResume() {
         super.onResume();
+        FileTools.restoreState(this, null);
         jobs.attach(this);
         jobsChanged();
         if (model.renamePreview != null && renameConfirmation == null && !jobs.snapshot().running)
@@ -141,6 +144,10 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         super.onActivityResult(request, result, data);
         FileTools.onActivityResult(this, request, result, data);
         refreshPanels();
+    }
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(request, permissions, results);
+        FileTools.onRequestPermissionsResult(this, request, results);
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         rememberScroll();
@@ -195,12 +202,13 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         LinearLayout root = column(); root.setBackgroundColor(background);
         LinearLayout top = row(); top.setPadding(dp(8), 0, dp(4), 0);
         TextView title = label("Files", 21, accent); title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        top.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1));
+        top.addView(title, new LinearLayout.LayoutParams(0, dp(compactChrome ? 48 : 52), 1));
         top.addView(button("Locations", "Choose storage location", v -> FileTools.showLocations(this)));
         top.addView(button("Tools", "Archive, editor and advanced tools", v -> FileTools.showTools(this)));
         top.addView(button("⋮", "Workspace menu", this::workspaceMenu));
         root.addView(top);
         direction = label("", 12, muted); direction.setPadding(dp(12), 0, dp(12), dp(5)); root.addView(direction);
+        if (compactChrome) direction.setVisibility(View.GONE);
         LinearLayout columns = row(); columns.setGravity(Gravity.TOP);
         for (int i = 0; i < 2; i++) {
             if (i == 1) { View line = new View(this); line.setBackgroundColor(muted); columns.addView(line, new LinearLayout.LayoutParams(dp(1), -1)); }
@@ -237,11 +245,14 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
             this.side = side;
             container = column(); container.setBackgroundColor(panel);
             heading = label("", 13, accent); heading.setPadding(dp(8), dp(6), dp(8), dp(6));
+            if (compactChrome) { heading.setPadding(dp(8), dp(2), dp(8), dp(2)); heading.setMinHeight(dp(24)); }
             heading.setOnClickListener(v -> activate(side)); container.addView(heading);
             path = label("", 11, text); path.setTypeface(Typeface.MONOSPACE); path.setMaxLines(3);
             path.setPadding(dp(8), dp(2), dp(8), dp(4)); path.setOnClickListener(v -> pathDialog(side));
+            if (compactChrome) { path.setSingleLine(true); path.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); path.setMinHeight(dp(28)); }
             path.setContentDescription((side == 0 ? "Left" : "Right") + " path, tap to enter a path"); container.addView(path);
-            crumbs = row(); container.addView(horizontal(crumbs));
+            crumbs = row(); View breadcrumbBar = horizontal(crumbs); container.addView(breadcrumbBar);
+            if (compactChrome) breadcrumbBar.setVisibility(View.GONE);
             LinearLayout navigation = row();
             back = button("‹", "Back in this column, Alt+Left", v -> history(side, true));
             forward = button("›", "Forward in this column, Alt+Right", v -> history(side, false));
@@ -263,7 +274,9 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
                 @Override public void afterTextChanged(Editable s) { }
             });
             container.addView(filter, new LinearLayout.LayoutParams(-1, dp(44)));
+            if (compactChrome) filter.setVisibility(View.GONE);
             status = label("", 11, muted); status.setPadding(dp(8), dp(3), dp(8), dp(3));
+            status.setMaxLines(1); status.setEllipsize(android.text.TextUtils.TruncateAt.END);
             status.setOnClickListener(v -> { activate(side); if (model.panes[side].error != null) message("Folder access failed", model.panes[side].error); else model.load(side); });
             container.addView(status);
             list = new ListView(FileManagerActivity.this); list.setDividerHeight(dp(1)); list.setFastScrollEnabled(true);
@@ -308,7 +321,8 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
             adapter.entries = pane.visible();
             status.setText(pane.loading ? "Loading…" : pane.error != null ? "Access error · tap for details / retry from menu"
                 : (pane.searchLabel != null ? "Search: " + pane.searchLabel + " · " : "")
-                    + adapter.entries.size() + " entries · " + pane.selection().size() + " selected");
+                    + adapter.entries.size() + " entries · " + pane.selection().size() + " selected"
+                    + (compactChrome && !pane.filter.isEmpty() ? " · filtered" : ""));
             status.setTextColor(pane.error != null ? accent : muted);
             adapter.notifyDataSetChanged();
             list.setSelectionFromTop(pane.scrollPosition, pane.scrollOffset);
@@ -422,6 +436,8 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         PopupMenu menu = new PopupMenu(this, anchor);
         item(menu, "Enter path…", () -> pathDialog(side));
         item(menu, "Refresh / exit search", () -> model.load(side));
+        item(menu, "Filter names…", () -> filterDialog(side));
+        if (!pane.filter.isEmpty()) item(menu, "Clear name filter", () -> { pane.filter = ""; renderPanels(); });
         item(menu, (pane.hidden ? "✓ " : "") + "Show hidden files", () -> { pane.hidden = !pane.hidden; renderPanels(); });
         item(menu, (pane.regex ? "✓ " : "") + "Regex name filter", () -> {
             try { if (!pane.regex) Pattern.compile(pane.filter); pane.regex = !pane.regex; renderPanels(); }
@@ -431,6 +447,22 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         item(menu, (pane.descending ? "✓ " : "") + "Descending order", () -> { pane.descending = !pane.descending; renderPanels(); });
         item(menu, "Bookmarks", this::bookmarks); item(menu, "Recursive search", this::searchDialog);
         menu.show();
+    }
+    private void filterDialog(int side) {
+        activate(side);
+        PaneState pane = model.panes[side];
+        EditText value = input(pane.regex ? "Name regex" : "Filter names");
+        value.setSingleLine(true); value.setText(pane.filter); value.selectAll();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(pane.regex ? "Name regex" : "Filter names")
+            .setView(value).setNegativeButton("Cancel", null).setPositiveButton("Apply", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String query = value.getText().toString();
+            if (pane.regex) try { Pattern.compile(query); }
+            catch (PatternSyntaxException invalid) { value.setError(invalid.getDescription()); return; }
+            pane.filter = query; pane.scrollPosition = 0; pane.scrollOffset = 0;
+            renderPanels(); dialog.dismiss();
+        }));
+        dialog.show();
     }
     private void selectionMenu(View anchor) {
         PaneState pane = model.panes[model.active]; PopupMenu menu = new PopupMenu(this, anchor);
@@ -748,7 +780,8 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
                     .setNegativeButton("Close", null).setPositiveButton("Permissions…", (d, w) -> permissions(properties.entries)).show();
                 return;
             }
-            refreshPanels(); message(state.title, state.result);
+            refreshPanels();
+            if (state.result != null && !state.result.isEmpty()) message(state.title, state.result);
         }
     }
     private void showConflict(FileJobs.Snapshot state) {
@@ -784,7 +817,10 @@ public final class FileManagerActivity extends Activity implements FileJobs.List
         }
         if (event.isCtrlPressed()) {
             if (key == KeyEvent.KEYCODE_L) { pathDialog(model.active); return true; }
-            if (key == KeyEvent.KEYCODE_F) { views[model.active].filter.requestFocus(); return true; }
+            if (key == KeyEvent.KEYCODE_F) {
+                if (compactChrome) filterDialog(model.active); else views[model.active].filter.requestFocus();
+                return true;
+            }
             if (key == KeyEvent.KEYCODE_A && !typing) { model.panes[model.active].selectAll(false); renderPanels(); return true; }
         }
         switch (key) {

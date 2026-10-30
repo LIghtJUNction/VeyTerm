@@ -370,6 +370,20 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     public void addNewSession(boolean isFailSafe, String sessionName) {
+        addNewSession(isFailSafe, sessionName, null, null);
+    }
+
+    public void addFileWorkspaceSession(File directory, File script) {
+        if (directory == null || !directory.isDirectory() || !directory.canRead()
+            || script != null && (!script.isFile() || !script.canRead())) {
+            new AlertDialog.Builder(mActivity).setTitle("Cannot open terminal")
+                .setMessage("The selected folder or script is no longer accessible.").setPositiveButton(android.R.string.ok, null).show();
+            return;
+        }
+        addNewSession(false, script == null ? null : script.getName(), directory.getAbsolutePath(), script);
+    }
+
+    private void addNewSession(boolean isFailSafe, String sessionName, String requestedDirectory, File script) {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return;
 
@@ -380,13 +394,19 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             TerminalSession currentSession = mActivity.getCurrentSession();
 
             String workingDirectory;
-            if (currentSession == null) {
+            if (requestedDirectory != null) {
+                workingDirectory = requestedDirectory;
+            } else if (currentSession == null) {
                 workingDirectory = mActivity.getProperties().getDefaultWorkingDirectory();
             } else {
                 workingDirectory = currentSession.getCwd();
             }
 
-            TermuxSession newTermuxSession = service.createTermuxSession(null, null, null, workingDirectory, isFailSafe, sessionName);
+            String executable = script == null ? null : TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash";
+            String[] arguments = script == null ? null : new String[]{"-l", "-c",
+                "\"$PREFIX/bin/bash\" -- \"$1\"; veyterm_script_status=$?; printf '\\n[Exit %s]\\n' \"$veyterm_script_status\"; exec \"$PREFIX/bin/bash\" -l",
+                "VeyTerm", script.getAbsolutePath()};
+            TermuxSession newTermuxSession = service.createTermuxSession(executable, arguments, null, workingDirectory, isFailSafe, sessionName);
             if (newTermuxSession == null) return;
 
             TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();

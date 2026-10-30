@@ -10,3 +10,6 @@
 -dontobfuscate
 #-renamesourcefileattribute SourceFile
 #-keepattributes SourceFile,LineNumberTable
+-keep class com.termux.app.files.privileged.RootFilesService { public <init>(); }
+-keep class com.termux.app.files.archive.NativeRar** { *; }
+-keep class com.termux.app.files.privileged.ShizukuFilesService { public <init>(android.content.Context); }

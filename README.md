@@ -6,14 +6,31 @@ terminal emulator, Android integration, shell bootstrap flow, and shared
 libraries from that upstream project so they can be extended with native AI
 workflows.
 
-Published APKs are available in the
+The previous terminal milestone is available in the
 [native bootstrap release](https://github.com/LIghtJUNction/VeyTerm/releases/tag/veyterm-native-20261026-ui2).
+The file workspace described below is being verified in the current source tree.
 
 The source UI uses a flat, warm terminal palette with a session drawer. Session
 names and shell titles appear in the header; each session has rename and close
 actions. The top menu exposes extra keys, text input, keyboard and settings.
 See the [UI notes](docs/UI_DESIGN.md) and
 [interactive interface preview](docs/preview/veyterm-preview.html).
+
+## Built-in file workspace
+
+The folder button opens two independent file columns in both portrait and
+landscape. Copy, move, batch rename, search, bookmarks, checksums, permissions,
+split/merge, comparison and terminal actions share the same workspace.
+
+It includes text and Hex editors; image, media and font previews; editable
+ZIP/7z/TAR archives; encrypted RAR4/5 reading; APK signing and installation;
+DEX/Smali, binary XML and resource editing; and local Java decompilation.
+Files can come from local storage, Android folder grants, SFTP, FTP/FTPS,
+WebDAV or SMB. ROOT and Shizuku access require explicit authorization.
+
+See the [feature and verification matrix](docs/FILE_MANAGER.md) for format
+boundaries, device checks and module documentation. User-visible branding,
+bundled welcome text and companion app labels use **VeyTerm**.
 
 ## Current fork boundary
 
@@ -38,8 +55,9 @@ CMake/Ninja and other utilities are in
 
 ## Build locally
 
-Use Android Studio or the Gradle wrapper, with Python 3.11+ available for the
-bootstrap runtime-path check. A debug APK can be built with:
+Use Android Studio or the Gradle wrapper, with Python 3.11+, CMake 3.22+,
+Android SDK 36 and NDK 30.0.16248370. Native archive reader sources are
+downloaded from pinned, checksum-verified archives. A debug APK can be built with:
 
 ```bash
 ./gradlew assembleDebug

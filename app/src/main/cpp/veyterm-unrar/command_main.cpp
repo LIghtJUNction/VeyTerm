@@ -12,15 +12,15 @@
 #include <cstdio>
 extern "C" char *getpass(const char *prompt) {
     static char password[2048];
-    struct termios previous;
-    if (tcgetattr(STDIN_FILENO, &previous) != 0) _exit(8);
+    struct termios previous = {};
+    const bool terminal = tcgetattr(STDIN_FILENO, &previous) == 0;
     struct termios hidden = previous;
     hidden.c_lflag &= static_cast<tcflag_t>(~ECHO);
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden) != 0) _exit(8);
-    if (prompt != nullptr) std::fputs(prompt, stderr);
+    if (terminal && tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden) != 0) _exit(8);
+    if (terminal && prompt != nullptr) std::fputs(prompt, stderr);
     std::memset(password, 0, sizeof(password));
     char *result = std::fgets(password, sizeof(password), stdin);
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &previous) != 0 || result == nullptr) _exit(8);
+    if ((terminal && tcsetattr(STDIN_FILENO, TCSAFLUSH, &previous) != 0) || result == nullptr) _exit(8);
     password[std::strcspn(password, "\r\n")] = 0;
     return password;
 }
@@ -55,9 +55,23 @@ int main(int argc, char **argv) {
         dictionary = value * unit;
     }
     const uint64_t budget = dictionary * 2;
+    uint64_t addressLimit = budget + 128ULL * 1024 * 1024;
+#ifdef __ANDROID__
+    // Bionic/Scudo reserves large PROT_NONE regions before main. Count those
+    // reservations as baseline; RLIMIT_DATA still bounds writable allocations.
+    FILE *statm = std::fopen("/proc/self/statm", "r");
+    unsigned long long pages = 0;
+    if (statm == nullptr) return 8;
+    const bool measured = std::fscanf(statm, "%llu", &pages) == 1;
+    std::fclose(statm);
+    const long pageSize = sysconf(_SC_PAGESIZE);
+    if (!measured || pageSize <= 0 || pages > (UINT64_MAX - addressLimit) / static_cast<uint64_t>(pageSize)) return 8;
+    addressLimit += pages * static_cast<uint64_t>(pageSize);
+    if (addressLimit >= static_cast<uint64_t>(RLIM_INFINITY)) return 8;
+#endif
     if (budget > 256ULL * 1024 * 1024 ||
         !limit(RLIMIT_DATA, static_cast<rlim_t>(budget)) ||
-        !limit(RLIMIT_AS, static_cast<rlim_t>(budget + 128ULL * 1024 * 1024)) ||
+        !limit(RLIMIT_AS, static_cast<rlim_t>(addressLimit)) ||
         !limit(RLIMIT_CPU, 120) || !limit(RLIMIT_NOFILE, 32) ||
         !limit(RLIMIT_CORE, 0) || !limit(RLIMIT_FSIZE, 0)) return 8;
     return unrar_main(argc, argv);

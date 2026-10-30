@@ -23,6 +23,7 @@ import java.util.Set;
 
 /** No method here obtains permission, starts a process, or reconnects a dead service. */
 final class PrivilegedFileAccess implements FileAccess {
+    @Override public void checkDelete(FileLocation location) throws IOException { requireDeletable(location); }
     private final String scheme;
     private IPrivilegedFiles service;
     private final Set<Closeable> streams = new HashSet<>();

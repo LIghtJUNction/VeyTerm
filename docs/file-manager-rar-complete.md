@@ -246,6 +246,14 @@ aligned with the parent's ABI filters. Supply notices in the APK assets and
 the release/source distribution; do not advertise the aggregate as entirely
 GPL/BSD.
 
+Android integration additionally measures the command's existing virtual address
+reservations before setting its address-space headroom: Bionic/Scudo reserves
+large inaccessible regions before `main`. Applying the host's absolute address
+limit on Android caused an observed abort. The writable-data, CPU, descriptor,
+file-output and dictionary limits remain enforced. Android's password reader
+also accepts the process's redirected stdin, without requiring a TTY. These
+paths are covered by the packaged Android encrypted-header and solid RAR cases.
+
 At FileStores/application initialization, on a background setup path:
 
 ```java

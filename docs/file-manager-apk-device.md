@@ -5,15 +5,9 @@
 All fixtures are constructed in the `com.veyterm` target process on Android.
 No host test output, pre-generated DEX, host keystore, or placeholder Java is used.
 
-This worker owns only the runner and this document. It does not change Gradle,
-either manifest, existing runners, production sources, native code, or dependency
-versions. The branch starts at parent HEAD
-`c948cf452283d8582e63cebc123344472c94d8eb`. Device execution belongs to the parent;
-SDK compilation alone is **not Android runtime acceptance**.
+## Registration and execution
 
-## Parent registration and execution
-
-Add this entry under `<manifest>` in the parent's
+The test APK registers this entry under `<manifest>` in
 `app/src/androidTest/AndroidManifest.xml`, alongside the existing instrumentation
 entries. Keep the existing default runner and providers:
 
@@ -74,9 +68,12 @@ including actual runtime crypto/JADX linkage errors rather than skipping them.
   unchanged input bytes, and empty session scratch after close. No Java compiler
   is embedded; DEX is compiled from Smali on-device and JADX generates Java.
 
-It deliberately does not invoke `ApkTools.deviceIdentity`: that method owns the
-fixed persistent user alias `veyterm-apk-user-v1`. The smoke does not create,
-reuse, or delete that key, change security providers, or import user credentials.
+The core scenario also round-trips resource-aware source XML and signs twice
+with `ApkTools.deviceIdentity`, verifying v4 and persistence of its AndroidKeyStore
+certificate. **Run this expanded scenario only in a disposable dedicated AVD**:
+it creates or reuses the target app's persistent `veyterm-apk-user-v1` alias.
+It never deletes that alias or changes security provider ordering. The separate
+PKCS12 fixture remains inside its random cache directory.
 
 ## Optional retained APK and installation
 

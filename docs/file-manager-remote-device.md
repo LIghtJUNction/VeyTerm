@@ -2,10 +2,8 @@
 
 `RemoteWorkspaceSmoke` is a custom `android.app.Instrumentation`, with no JUnit,
 AndroidX runner, or new app dependency. It exercises the actual packaged
-`RemoteFiles`, `ConnectionStore`, and parent-owned `RemoteFileAccess`. This worker
-owns only the runner, `tools/file_manager_remote_smoke.py`, and this document.
-Manifest, Gradle, production fixes, APK build/install, and device execution belong
-to the parent. No CI or push is needed.
+`RemoteFiles`, `ConnectionStore`, and parent-owned `RemoteFileAccess`. The orchestration script is `tools/file_manager_remote_smoke.py`; matching target
+and test APKs must already be installed.
 
 ## Parent integration
 
@@ -83,8 +81,8 @@ python3 tools/file_manager_remote_smoke.py \
   --serial NO_DEVICE_COMPILE_ONLY --source-repo /absolute/parent/VeyTerm \
   --fs-source /absolute/parent/VeyTerm/app/src/main/java/com/termux/app/files/fs \
   --deps /absolute/pinned-jars --compile-only \
-  --android-jar /opt/android-sdk/platforms/android-35/android.jar \
-  --lambda-stubs /opt/android-sdk/build-tools/35.0.0/core-lambda-stubs.jar
+  --android-jar /opt/android-sdk/platforms/android-36/android.jar \
+  --lambda-stubs /opt/android-sdk/build-tools/36.0.0/core-lambda-stubs.jar
 ```
 
 After the parent builds and installs the APKs, **the parent** runs:

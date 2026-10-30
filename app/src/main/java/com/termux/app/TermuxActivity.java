@@ -73,6 +73,7 @@ import androidx.core.view.ViewCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.viewpager.widget.ViewPager;
 
+import java.io.File;
 import java.util.Arrays;
 
 /**
@@ -413,7 +414,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
                         if (intent != null && intent.getExtras() != null) {
                             launchFailsafe = intent.getExtras().getBoolean(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, false);
                         }
-                        mTermuxTerminalSessionActivityClient.addNewSession(launchFailsafe, null);
+                        if (!openFileWorkspaceRequest(intent)) mTermuxTerminalSessionActivityClient.addNewSession(launchFailsafe, null);
                     } catch (WindowManager.BadTokenException e) {
                         // Activity finished - ignore.
                     }
@@ -426,7 +427,9 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             // If termux was started from launcher "New session" shortcut and activity is recreated,
             // then the original intent will be re-delivered, resulting in a new session being re-added
             // each time.
-            if (!mIsActivityRecreated && intent != null && Intent.ACTION_RUN.equals(intent.getAction())) {
+            if (openFileWorkspaceRequest(intent)) {
+                // A one-use request from the native workspace selected its working directory.
+            } else if (!mIsActivityRecreated && intent != null && Intent.ACTION_RUN.equals(intent.getAction())) {
                 // Android 7.1 app shortcut from res/xml/shortcuts.xml.
                 boolean isFailSafe = intent.getBooleanExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, false);
                 mTermuxTerminalSessionActivityClient.addNewSession(isFailSafe, null);
@@ -445,6 +448,35 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
 
         // Respect being stopped from the {@link TermuxService} notification action.
         finishActivityIfNotFinishing();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (mTermuxService != null) {
+            if (openFileWorkspaceRequest(intent)) setIntent(null);
+            else if (intent != null && Intent.ACTION_RUN.equals(intent.getAction())) {
+                mTermuxTerminalSessionActivityClient.addNewSession(intent.getBooleanExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, false), null);
+                setIntent(null);
+            }
+        }
+    }
+
+    private boolean openFileWorkspaceRequest(Intent intent) {
+        if (intent == null) return false;
+        com.termux.app.files.FileWorkspaceRequests.Request request = com.termux.app.files.FileWorkspaceRequests.take(
+            intent.getStringExtra(com.termux.app.files.FileWorkspaceRequests.EXTRA));
+        if (request == null) return false;
+        mTermuxTerminalSessionActivityClient.addFileWorkspaceSession(request.directory, request.script);
+        return true;
+    }
+
+    private void openFileWorkspace() {
+        String cwd = getCurrentSession() == null ? null : getCurrentSession().getCwd();
+        File directory = cwd == null ? new File(getFilesDir(), "home") : new File(cwd);
+        if (!directory.isDirectory() || !directory.canRead()) directory = new File(getFilesDir(), "home");
+        startActivity(new Intent(this, com.termux.app.files.ui.FileManagerActivity.class).putExtra("file_path", directory.getAbsolutePath()));
     }
 
 
@@ -633,6 +665,12 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             ViewCompat.setTooltipText(topNewSessionButton, getString(R.string.action_new_session));
         }
 
+        View filesButton = findViewById(R.id.top_files_button);
+        if (filesButton != null) {
+            filesButton.setOnClickListener(v -> openFileWorkspace());
+            ViewCompat.setTooltipText(filesButton, getString(R.string.action_open_files));
+        }
+
         View actionsButton = findViewById(R.id.terminal_actions_button);
         actionsButton.setOnClickListener(this::showTerminalActions);
         ViewCompat.setTooltipText(actionsButton, getString(R.string.action_terminal_actions));
@@ -646,7 +684,9 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         popup.getMenu().findItem(R.id.action_keep_screen_on).setChecked(mTerminalView.getKeepScreenOn());
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.action_extra_keys) {
+            if (id == R.id.action_open_files) {
+                openFileWorkspace();
+            } else if (id == R.id.action_extra_keys) {
                 if (getTerminalToolbarViewPager().getVisibility() == View.VISIBLE && isTerminalViewSelected()) {
                     toggleTerminalToolbar();
                 } else {

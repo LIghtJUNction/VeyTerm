@@ -353,9 +353,9 @@ public final class TermuxConstants {
     /** Java namespace retained by the fork for existing app and JNI classes. */
     public static final String TERMUX_APP_NAMESPACE = "com.termux";
     /** Termux GitHub repo name */
-    public static final String TERMUX_GITHUB_REPO_NAME = "termux-app"; // Default: "termux-app"
+    public static final String TERMUX_GITHUB_REPO_NAME = "VeyTerm";
     /** Termux GitHub repo url */
-    public static final String TERMUX_GITHUB_REPO_URL = TERMUX_GITHUB_ORGANIZATION_URL + "/" + TERMUX_GITHUB_REPO_NAME; // Default: "https://github.com/termux/termux-app"
+    public static final String TERMUX_GITHUB_REPO_URL = "https://github.com/LIghtJUNction/VeyTerm";
     /** Termux GitHub issues repo url */
     public static final String TERMUX_GITHUB_ISSUES_REPO_URL = TERMUX_GITHUB_REPO_URL + "/issues"; // Default: "https://github.com/termux/termux-app/issues"
     /** Termux F-Droid package url */
@@ -363,7 +363,7 @@ public final class TermuxConstants {
 
 
     /** Termux:API app name */
-    public static final String TERMUX_API_APP_NAME = "Termux:API"; // Default: "Termux:API"
+    public static final String TERMUX_API_APP_NAME = "VeyTerm:API"; // Default: "VeyTerm:API"
     /** Termux:API app package name */
     public static final String TERMUX_API_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".api"; // Default: "com.termux.api"
     /** Termux:API GitHub repo name */
@@ -377,7 +377,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Boot app name */
-    public static final String TERMUX_BOOT_APP_NAME = "Termux:Boot"; // Default: "Termux:Boot"
+    public static final String TERMUX_BOOT_APP_NAME = "VeyTerm:Boot"; // Default: "VeyTerm:Boot"
     /** Termux:Boot app package name */
     public static final String TERMUX_BOOT_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".boot"; // Default: "com.termux.boot"
     /** Termux:Boot GitHub repo name */
@@ -391,7 +391,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Float app name */
-    public static final String TERMUX_FLOAT_APP_NAME = "Termux:Float"; // Default: "Termux:Float"
+    public static final String TERMUX_FLOAT_APP_NAME = "VeyTerm:Float"; // Default: "VeyTerm:Float"
     /** Termux:Float app package name */
     public static final String TERMUX_FLOAT_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".window"; // Default: "com.termux.window"
     /** Termux:Float GitHub repo name */
@@ -405,7 +405,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Styling app name */
-    public static final String TERMUX_STYLING_APP_NAME = "Termux:Styling"; // Default: "Termux:Styling"
+    public static final String TERMUX_STYLING_APP_NAME = "VeyTerm:Styling"; // Default: "VeyTerm:Styling"
     /** Termux:Styling app package name */
     public static final String TERMUX_STYLING_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".styling"; // Default: "com.termux.styling"
     /** Termux:Styling GitHub repo name */
@@ -419,7 +419,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Tasker app name */
-    public static final String TERMUX_TASKER_APP_NAME = "Termux:Tasker"; // Default: "Termux:Tasker"
+    public static final String TERMUX_TASKER_APP_NAME = "VeyTerm:Tasker"; // Default: "VeyTerm:Tasker"
     /** Termux:Tasker app package name */
     public static final String TERMUX_TASKER_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".tasker"; // Default: "com.termux.tasker"
     /** Termux:Tasker GitHub repo name */
@@ -433,7 +433,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Widget app name */
-    public static final String TERMUX_WIDGET_APP_NAME = "Termux:Widget"; // Default: "Termux:Widget"
+    public static final String TERMUX_WIDGET_APP_NAME = "VeyTerm:Widget"; // Default: "VeyTerm:Widget"
     /** Termux:Widget app package name */
     public static final String TERMUX_WIDGET_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".widget"; // Default: "com.termux.widget"
     /** Termux:Widget GitHub repo name */

@@ -28,4 +28,10 @@
         android:targetPackage="com.veyterm"
         android:functionalTest="true"
         android:handleProfiling="false" />
+    <instrumentation
+        android:name="com.termux.app.files.RemoteWorkspaceSmoke"
+        android:targetPackage="com.veyterm" />
+    <instrumentation
+        android:name="com.termux.app.files.ApkWorkspaceSmoke"
+        android:targetPackage="com.veyterm" />
 </manifest>

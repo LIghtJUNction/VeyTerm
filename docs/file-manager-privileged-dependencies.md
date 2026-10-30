@@ -94,11 +94,12 @@ Minimum Shizuku server version: 13 (Context constructor / non-daemon lifecycle).
 The **published api 13.1.5 AAR declares minSdk 24**, while provider 13.1.5 declares
 23. This was checked in their actual `AndroidManifest.xml` files, beyond the
 general guide's Android 6 requirement. Shizuku connect is guarded at API 24.
-The parent app currently declares minSdk 21: integrating these exact artifacts
-into one APK therefore requires a platform/dependency decision before the full
-build. Do not silently use `tools:overrideLibrary` to bypass that incompatibility.
-This worker has not changed the parent's minimum platform. The ROOT backend itself
-uses Android API 21+; the combined dependency set declares API 24+.
+The integrated app retains minSdk 21. It explicitly overrides these two library
+declarations (including its shared/AIDL artifacts), disables the Shizuku provider using a default-false resource that
+becomes true at API 24, and rejects Shizuku connection below API 24 before touching
+the API. ROOT and other storage backends remain available independently. This
+conditional integration must be checked on an older OS; API 33 acceptance alone
+does not establish API 21 compatibility. The ROOT backend itself uses API 21+.
 
 ## Official sources checked 2026-10-30
 

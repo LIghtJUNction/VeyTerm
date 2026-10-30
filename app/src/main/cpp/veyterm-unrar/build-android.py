@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ndk', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=HERE / 'build/android')
+    parser.add_argument('--abis', nargs='+', choices=ABIS, default=ABIS)
     args = parser.parse_args()
     if 'Pkg.Revision = 30.' not in (args.ndk / 'source.properties').read_text():
         raise RuntimeError('This build is pinned to Android NDK r30')
@@ -26,7 +27,7 @@ def main():
     sysroot_notice = args.ndk / 'toolchains/llvm/prebuilt/linux-x86_64/sysroot/NOTICE'
     if sysroot_notice.read_bytes() != (HERE / 'NOTICE.NDK-r30-sysroot').read_bytes():
         raise RuntimeError('NDK sysroot notices changed; review and preserve the new license notices')
-    for abi in ABIS:
+    for abi in args.abis:
         output = args.output.resolve() / abi
         temporary = output / 'tmp'
         temporary.mkdir(parents=True, exist_ok=True)

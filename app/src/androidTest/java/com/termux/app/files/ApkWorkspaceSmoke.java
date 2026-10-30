@@ -120,7 +120,23 @@ public final class ApkWorkspaceSmoke extends Instrumentation {
                 entry(zip, "classes.dex", read(dex));
                 entry(zip, "assets/proof.txt", AFTER.getBytes(StandardCharsets.UTF_8));
             }
-            stage("android-keystore");
+            stage("source-xml");
+            String sourceXml = com.termux.app.files.apk.ApkSourceXml.decode(unsigned, "AndroidManifest.xml");
+            check(sourceXml.contains("Device smoke after"), "source XML decodes the actual manifest");
+            byte[] sourceEdited = com.termux.app.files.apk.ApkSourceXml.compile(unsigned,
+                sourceXml.replace("Device smoke after", "Source XML device"));
+            check(ApkFormats.xmlPreview(sourceEdited).contains("Source XML device"), "source XML compiles the changed Android label");
+            stage("device-keystore-signing");
+            File deviceSigned = new File(work, "device-key.apk");
+            ApkSignatures.sign(unsigned, deviceSigned, ApkTools.deviceIdentity(target), true, true);
+            ApkVerifier.Result deviceVerified = ApkSignatures.verify(deviceSigned, new File(deviceSigned.getPath() + ".idsig"));
+            check(deviceVerified.isVerified() && deviceVerified.isVerifiedUsingV4Scheme(), "AndroidKeyStore device key signs a verified APK and v4 sidecar");
+            File deviceAgain = new File(work, "device-key-again.apk");
+            ApkSignatures.sign(unsigned, deviceAgain, ApkTools.deviceIdentity(target), true, false);
+            ApkVerifier.Result againVerified = ApkSignatures.verify(deviceAgain);
+            check(againVerified.isVerified() && Arrays.equals(deviceVerified.getSignerCertificates().get(0).getEncoded(),
+                againVerified.getSignerCertificates().get(0).getEncoded()), "device signing identity is reused across calls");
+            stage("pkcs12-import");
             ApkSignatures.Identity identity = identity(work);
             stage("sign-verify");
             File signed = new File(root, "fixture.apk");

@@ -66,7 +66,7 @@ Primary references: [release](https://github.com/skylot/jadx/releases/tag/v1.5.6
 | `com.android.tools.smali:smali-dexlib2:3.0.9` | Relocated fork required by those diagnostics |
 | `com.android.tools.smali:smali-util:3.0.9` | Relocated fork utility classes |
 | **existing** `org.slf4j:slf4j-api:2.0.17` | Shared logging API; no desktop binding |
-| **existing** `com.google.guava:guava:27.1-android` | Shared Android Guava, not a JRE variant |
+| **existing** `com.google.guava:guava:27.1-jre` | Shared terminal cleanup requires the JRE artifact's MoreFiles/RecursiveDeleteOption |
 | **existing** `com.google.guava:failureaccess:1.0.1` | Guava runtime |
 | **existing** `org.smali:dexlib2:2.5.2` | DEX string/reference index for global search |
 | **existing** `org.smali:smali/baksmali/util:2.5.2` | Parent APK tooling; also fixture assembly/coexistence tests |
@@ -101,7 +101,7 @@ dependencies {
     implementation('com.android.tools.smali:smali-util:3.0.9@jar') { transitive = false }
 
     implementation('org.slf4j:slf4j-api') { version { strictly '2.0.17' } }
-    implementation('com.google.guava:guava') { version { strictly '27.1-android' } }
+    implementation('com.google.guava:guava') { version { strictly '27.1-jre' } }
     implementation 'com.google.guava:failureaccess:1.0.1'
     // Keep the parent's org.smali 2.5.2 / antlr-runtime-only declarations.
     // Replace the old 1.1.5 coreLibraryDesugaring declaration; do not add both.

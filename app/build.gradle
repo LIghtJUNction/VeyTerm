@@ -46,7 +46,40 @@ android {
         implementation "androidx.preference:preference:1.2.1"
         implementation "androidx.viewpager:viewpager:1.0.0"
         implementation "com.google.android.material:material:1.12.0"
-        implementation "com.google.guava:guava:24.1-jre"
+        // Shared startup/socket cleanup needs MoreFiles, which the Android artifact omits.
+        implementation "com.google.guava:guava:27.1-jre"
+        implementation 'net.lingala.zip4j:zip4j:2.11.6'
+        implementation 'org.apache.commons:commons-compress:1.28.0'
+        implementation 'org.tukaani:xz:1.12'
+        implementation 'commons-io:commons-io:2.22.0'
+        implementation 'org.apache.commons:commons-lang3:3.21.0'
+        implementation 'commons-codec:commons-codec:1.19.0'
+        implementation 'org.slf4j:slf4j-api:2.0.17'
+        runtimeOnly 'org.slf4j:slf4j-nop:2.0.17'
+        implementation 'com.github.mwiede:jsch:2.28.8'
+        implementation 'commons-net:commons-net:3.13.0'
+        implementation 'eu.agno3.jcifs:jcifs-ng:2.1.10'
+        implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+        implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+        implementation 'org.smali:dexlib2:2.5.2'
+        implementation 'org.smali:baksmali:2.5.2'
+        implementation('org.smali:smali:2.5.2') {
+            exclude group: 'org.antlr', module: 'antlr'
+            exclude group: 'org.antlr', module: 'stringtemplate'
+        }
+        implementation 'org.antlr:antlr-runtime:3.5.2'
+        implementation 'com.android.tools.build:apksig:8.13.2'
+        implementation 'com.github.topjohnwu.libsu:core:6.0.0'
+        implementation 'com.github.topjohnwu.libsu:service:6.0.0'
+        implementation 'dev.rikka.shizuku:api:13.1.5'
+        implementation 'dev.rikka.shizuku:provider:13.1.5'
+        ['jadx-core', 'jadx-input-api', 'jadx-zip', 'jadx-dex-input'].each { artifact ->
+            implementation("io.github.skylot:${artifact}:1.5.6@jar") { transitive = false }
+        }
+        implementation('com.google.code.gson:gson:2.14.0@jar') { transitive = false }
+        ['smali-baksmali', 'smali-dexlib2', 'smali-util'].each { artifact ->
+            implementation("com.android.tools.smali:${artifact}:3.0.9@jar") { transitive = false }
+        }
         implementation "io.noties.markwon:core:$markwonVersion"
         implementation "io.noties.markwon:ext-strikethrough:$markwonVersion"
         implementation "io.noties.markwon:linkify:$markwonVersion"
@@ -63,6 +96,8 @@ android {
         targetSdkVersion project.properties.targetSdkVersion.toInteger()
         versionCode 118
         versionName "0.118.0"
+        multiDexEnabled true
+        testInstrumentationRunner 'com.termux.app.files.FileWorkspaceSmoke'
 
         if (appVersionName) versionName = appVersionName
         validateVersionName(versionName)
@@ -71,12 +106,12 @@ android {
 
         manifestPlaceholders.TERMUX_PACKAGE_NAME = "com.veyterm"
         manifestPlaceholders.TERMUX_APP_NAME = "VeyTerm"
-        manifestPlaceholders.TERMUX_API_APP_NAME = "Termux:API"
-        manifestPlaceholders.TERMUX_BOOT_APP_NAME = "Termux:Boot"
-        manifestPlaceholders.TERMUX_FLOAT_APP_NAME = "Termux:Float"
-        manifestPlaceholders.TERMUX_STYLING_APP_NAME = "Termux:Styling"
-        manifestPlaceholders.TERMUX_TASKER_APP_NAME = "Termux:Tasker"
-        manifestPlaceholders.TERMUX_WIDGET_APP_NAME = "Termux:Widget"
+        manifestPlaceholders.TERMUX_API_APP_NAME = "VeyTerm:API"
+        manifestPlaceholders.TERMUX_BOOT_APP_NAME = "VeyTerm:Boot"
+        manifestPlaceholders.TERMUX_FLOAT_APP_NAME = "VeyTerm:Float"
+        manifestPlaceholders.TERMUX_STYLING_APP_NAME = "VeyTerm:Styling"
+        manifestPlaceholders.TERMUX_TASKER_APP_NAME = "VeyTerm:Tasker"
+        manifestPlaceholders.TERMUX_WIDGET_APP_NAME = "VeyTerm:Widget"
 
         externalNativeBuild {
             ndkBuild {
@@ -145,12 +180,25 @@ android {
         }
     }
 
+    sourceSets {
+        // These desktop harnesses start protocol servers or execute generated Java fixtures.
+        // Their pinned standalone runners supply the JDK modules and generated sources.
+        test.java.exclude 'com/termux/app/files/remote/RemoteRoundTripChecks.java',
+            'com/termux/app/files/decompile/ExportedJavaTest.java'
+    }
+
     packagingOptions {
         jniLibs {
             useLegacyPackaging true
             ["x86", "x86_64", "armeabi-v7a", "arm64-v8a"].findAll { !project.ext.nativeAbis.contains(it) }.each {
                 excludes.add("**/${it}/*.so")
             }
+        }
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/INDEX.LIST', 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'META-INF/versions/**']
+            merges += ['META-INF/LICENSE*', 'META-INF/NOTICE*', 'LICENSE', 'NOTICE']
+            // Both relocated Smali implementations carry a CLI-only version file.
+            pickFirsts += ['baksmali.properties']
         }
     }
 
@@ -168,13 +216,130 @@ android {
 
     buildFeatures {
         buildConfig true
+        aidl true
     }
 }
 
 dependencies {
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.robolectric:robolectric:4.10"
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.1.5"
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs_nio:2.1.5"
+}
+
+// ARSCLib includes host-only Android and XML-pull stubs; the APK uses platform classes.
+configurations { apkArscSource }
+dependencies { apkArscSource('io.github.reandroid:ARSCLib:1.4.0') { transitive = false } }
+def apkArscAndroidJar = tasks.register('apkArscAndroidJar', Jar) {
+    archiveFileName.set('ARSCLib-1.4.0-android.jar')
+    destinationDirectory.set(layout.buildDirectory.dir('apk-tools-deps'))
+    from { zipTree(configurations.apkArscSource.singleFile) }
+    exclude 'android/**', 'org/xmlpull/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+}
+dependencies { implementation files(apkArscAndroidJar.flatMap { it.archiveFile }) }
+
+def prepareArchiveSources = tasks.register('prepareArchiveSources', Exec) {
+    description = 'Verify and prepare the pinned libarchive RAR decoder sources.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', file('src/main/cpp/veyterm-archive/prepare.py').absolutePath
+    inputs.files(fileTree('src/main/cpp/veyterm-archive') { exclude 'build/**' })
+    outputs.dir('src/main/cpp/veyterm-archive/build/source')
+}
+def unrarDir = file('src/main/cpp/veyterm-unrar')
+def unrarNative = layout.buildDirectory.dir('generated/unrar/jniLibs')
+def unrarNotices = layout.buildDirectory.dir('generated/unrar/assets')
+def prepareUnrarCommand = tasks.register('prepareUnrarCommand', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'python3', new File(unrarDir, 'prepare.py').absolutePath
+    inputs.files(['prepare.py', 'sources.txt', 'LICENSE.UnRAR', 'ACKNOWLEDGEMENTS.UnRAR'].collect { new File(unrarDir, it) })
+    outputs.dir(new File(unrarDir, 'build/source'))
+}
+def buildUnrarCommand = tasks.register('buildUnrarCommand', Exec) {
+    dependsOn prepareUnrarCommand
+    workingDir rootProject.projectDir
+    commandLine(['python3', new File(unrarDir, 'build-android.py').absolutePath, '--ndk',
+        new File(android.sdkDirectory, "ndk/${android.ndkVersion}").absolutePath, '--abis'] + project.ext.nativeAbis)
+    inputs.files(fileTree(unrarDir) { exclude 'build/android/**' })
+    inputs.property('abis', project.ext.nativeAbis)
+    outputs.files(project.ext.nativeAbis.collect { new File(unrarDir, "build/android/${it}/libveyterm_unrar.so") })
+}
+def stageUnrarCommand = tasks.register('stageUnrarCommand', Sync) {
+    dependsOn buildUnrarCommand
+    project.ext.nativeAbis.each { abi ->
+        from(new File(unrarDir, "build/android/${abi}")) { include 'libveyterm_unrar.so'; into abi }
+    }
+    into unrarNative
+}
+def stageUnrarNotices = tasks.register('stageUnrarNotices', Sync) {
+    from(unrarDir) { include 'LICENSE.UnRAR', 'ACKNOWLEDGEMENTS.UnRAR', 'LICENSE.guard', 'NOTICE.NDK-r30-*' }
+    into unrarNotices.map { it.dir('licenses/veyterm-unrar') }
+}
+android.sourceSets.main.jniLibs.srcDir(unrarNative)
+android.sourceSets.main.assets.srcDir(unrarNotices)
+tasks.named('preBuild').configure { dependsOn stageUnrarCommand, stageUnrarNotices }
+tasks.configureEach {
+    if (name.matches('merge.*NativeLibs')) dependsOn stageUnrarCommand
+    if (name.matches('merge.*Assets')) dependsOn stageUnrarNotices
+}
+tasks.configureEach { task ->
+    if (task.name == 'preBuild' || task.name.startsWith('configureNdkBuild') || task.name.startsWith('buildNdkBuild'))
+        task.dependsOn prepareArchiveSources
+}
+
+def archiveJvmRuntime = tasks.register('prepareArchiveJvmRuntime', Exec) {
+    dependsOn prepareArchiveSources, prepareUnrarCommand
+    workingDir rootProject.projectDir
+    commandLine 'python3', rootProject.file('tools/prepare_archive_test_runtime.py').absolutePath,
+        layout.buildDirectory.dir('archive-jvm').get().asFile.absolutePath
+    inputs.files(fileTree('src/main/cpp/veyterm-archive') { exclude 'build/**' },
+        fileTree('src/main/cpp/veyterm-unrar') { exclude 'build/**' },
+        fileTree('src/test/java/com/termux/app/files/archive/fixtures'), file('src/test/java/com/termux/app/files/archive/command-fixture.c'),
+        rootProject.file('tools/prepare_archive_test_runtime.py'))
+    outputs.dir(layout.buildDirectory.dir('archive-jvm'))
+}
+def unavailableRarTest = tasks.register('verifyRarUnavailable', Test) {
+    def normalTests = tasks.named('testDebugUnitTest', Test).get()
+    dependsOn 'compileDebugUnitTestJavaWithJavac'
+    testClassesDirs = normalTests.testClassesDirs
+    classpath = normalTests.classpath
+    include '**/RarUnavailableTest.class'
+    systemProperty 'java.library.path', layout.buildDirectory.dir('archive-jvm/no-native').get().asFile.absolutePath
+    maxHeapSize = '256m'
+}
+def fullRarTest = tasks.register('verifyFullRarCommand', Test) {
+    def normalTests = tasks.named('testDebugUnitTest', Test).get()
+    dependsOn 'compileDebugUnitTestJavaWithJavac', archiveJvmRuntime
+    testClassesDirs = normalTests.testClassesDirs
+    classpath = normalTests.classpath
+    include '**/FullRarTest.class'
+    systemProperty 'java.library.path', layout.buildDirectory.dir('archive-jvm/no-native').get().asFile.absolutePath
+    systemProperty 'veyterm.rar.fixtures', layout.buildDirectory.dir('archive-jvm/fixtures').get().asFile.absolutePath
+    systemProperty 'veyterm.rar.command', layout.buildDirectory.file('archive-jvm/unrar/libveyterm_unrar.so').get().asFile.absolutePath
+    systemProperty 'veyterm.rar.commandFixture', layout.buildDirectory.file('archive-jvm/command-fixture').get().asFile.absolutePath
+    maxHeapSize = '256m'
+}
+def rarDeviceFixtures = layout.buildDirectory.dir('rar-device/fixtures')
+def prepareRarDeviceFixtures = tasks.register('prepareRarDeviceFixtures', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'python3', rootProject.file('tools/prepare_archive_test_runtime.py').absolutePath,
+        layout.buildDirectory.dir('rar-device').get().asFile.absolutePath, '--fixtures-only'
+    inputs.files(fileTree('src/test/java/com/termux/app/files/archive/fixtures'), rootProject.file('tools/prepare_archive_test_runtime.py'))
+    outputs.dir(rarDeviceFixtures)
+}
+android.sourceSets.androidTest.assets.srcDir(rarDeviceFixtures)
+android.sourceSets.test.java.srcDir('src/sharedTest/java')
+android.sourceSets.androidTest.java.srcDir('src/sharedTest/java')
+tasks.configureEach { if (name.matches('merge.*AndroidTestAssets')) dependsOn prepareRarDeviceFixtures }
+tasks.withType(Test).configureEach { unit ->
+    if (unit.name.startsWith('test') && unit.name.endsWith('UnitTest')) {
+        dependsOn archiveJvmRuntime
+        exclude '**/RarUnavailableTest.class'
+        exclude '**/FullRarTest.class'
+        systemProperty 'java.library.path', layout.buildDirectory.dir('archive-jvm/native').get().asFile.absolutePath
+        systemProperty 'veyterm.rar.fixtures', layout.buildDirectory.dir('archive-jvm/fixtures').get().asFile.absolutePath
+        maxHeapSize = '512m'
+        if (unit.name == 'testDebugUnitTest') finalizedBy unavailableRarTest, fullRarTest
+    }
 }
 
 task versionName {

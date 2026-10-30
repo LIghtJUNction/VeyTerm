@@ -120,7 +120,7 @@ def prepare(destination=HERE / 'build/source', archive=None):
             if path.is_file():
                 shutil.copy2(path, stage / path.name)
         for notice, vendored in [('license.txt', 'LICENSE.UnRAR'), ('acknow.txt', 'ACKNOWLEDGEMENTS.UnRAR')]:
-            if (stage / notice).read_bytes() != (HERE / vendored).read_bytes():
+            if (stage / notice).read_bytes().replace(b'\r\n', b'\n') != (HERE / vendored).read_bytes().replace(b'\r\n', b'\n'):
                 raise RuntimeError('Upstream license notice changed')
         makefile = (stage / 'makefile').read_text().replace(chr(92) + chr(10), ' ')
         expected_sources = []

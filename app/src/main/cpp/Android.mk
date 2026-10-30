@@ -11,3 +11,7 @@ include $(BUILD_SHARED_LIBRARY)
 
 # .incbin inputs are not emitted in clang's assembly dependency file.
 $(LOCAL_OBJS_DIR)/termux-bootstrap-zip.o: $(bootstrap_archive)
+
+veyterm_app_cpp_path := $(LOCAL_PATH)
+include $(veyterm_app_cpp_path)/veyterm-archive/Android.mk
+LOCAL_PATH := $(veyterm_app_cpp_path)

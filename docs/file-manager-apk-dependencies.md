@@ -56,11 +56,13 @@ calls, not shell commands, network services or remote APK processing.
 | `com.android.tools.build:apksig:8.13.2` | Cryptographic v1/v2/v3 signing and detached v4 generation/verification | Apache-2.0, [AOSP signer API](https://android.googlesource.com/platform/tools/apksig/+/refs/heads/main/src/main/java/com/android/apksig/ApkSigner.java), [verifier API](https://android.googlesource.com/platform/tools/apksig/+/refs/heads/main/src/main/java/com/android/apksig/ApkVerifier.java) |
 | existing `androidx.core:core:1.13.1` | Legacy narrow read-only FileProvider API (session UI does not need it) | Apache-2.0, [official FileProvider API](https://developer.android.com/reference/androidx/core/content/FileProvider) |
 
-Use Smali's `org.smali:util:2.5.2`, `com.beust:jcommander:1.64`, and Guava's
-`27.1-android` / `failureaccess:1.0.1` transitives. The project currently declares
-Guava 24.1-jre; ordinary dependency resolution selects the newer Smali Android
-variant. The host tests explicitly use 27.1-android. Do not force the older JRE
-variant without checking the resulting runtime.
+Use Smali's `org.smali:util:2.5.2`, `com.beust:jcommander:1.64`, and Guava
+`27.1-jre` / `failureaccess:1.0.1`. Both application and shared terminal modules
+pin the JRE artifact: shared startup/socket cleanup calls `MoreFiles` and
+`RecursiveDeleteOption`, which the Android artifact omits. The Android smoke
+suite exercises deletion of a filesystem socket so this startup dependency is
+checked on the device as well as during compilation. Core-library/NIO desugaring
+is enabled for older Android versions.
 
 Exclude the unused ANTLR **tool** and StringTemplate; the adapters use only the
 generated parser and `antlr-runtime`. The standalone tests pass without the tool,

@@ -46,10 +46,14 @@ public final class FileWorkspaceSmoke extends Instrumentation {
     private File root;
     private Context isolated;
     private int assertions, passed, failed;
+    private String only = "";
     private static final FileOperations.ConflictResolver REJECT = (s, t) -> FileOperations.Conflict.CANCEL;
     private static final byte[] TEXT = "VeyTerm：目录/雪 ❄ /🙂\n\u0000binary\n".getBytes(StandardCharsets.UTF_8);
 
-    @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); start(); }
+    @Override public void onCreate(Bundle arguments) {
+        if (arguments != null) only = arguments.getString("only", "");
+        super.onCreate(arguments); start();
+    }
 
     @Override public void onStart() {
         Bundle result = new Bundle();
@@ -64,7 +68,9 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             report.append("FileWorkspaceSmoke target=").append(getTargetContext().getPackageName())
                 .append(" API=").append(android.os.Build.VERSION.SDK_INT).append('\n');
             check("target context is VeyTerm", "com.veyterm".equals(getTargetContext().getPackageName()));
+            runCase("shared terminal stale socket cleanup", this::socketCleanup);
             runCase("local Unicode nested copy/move", this::localTransfers);
+            runCase("same-folder aliases preserve source", this::aliasProtection);
             runCase("local cancellation and no-clobber races", this::cancellationAndCollision);
             runCase("local batch rename cycle and rollback", this::batchRename);
             runCase("delete preflight before first mutation", this::deletePreflight);
@@ -80,7 +86,13 @@ public final class FileWorkspaceSmoke extends Instrumentation {
                 runCase("virtual archive copy/edit/move " + format, () -> virtualArchive(format));
             }
             runCase("malformed/traversal archive rejection", this::malformedArchives);
+            com.termux.app.files.fs.FileStores.create(getTargetContext());
             runCase("real SAF cross-UID tree/copy/edit/conflict", this::saf);
+            runCase("volume staging recovery and cleanup 40 behaviors", this::volumeStaging);
+            for (String name : new String[]{"rar4_encrypted_filenames", "rar4_solid_encrypted", "rar4_solid_encrypted_filenames",
+                "rar5_encrypted_filenames", "rar5_solid_encrypted", "rar5_solid_encrypted_filenames"}) {
+                runCase("Android encrypted RAR " + name, () -> encryptedRar(name));
+            }
         } catch (Throwable e) { failure("runner setup", e); }
         finally {
             if (root != null) {
@@ -107,6 +119,7 @@ public final class FileWorkspaceSmoke extends Instrumentation {
     }
 
     private void runCase(String name, Checked test) {
+        if (!only.isEmpty() && !name.contains(only)) return;
         try { test.run(); passed++; report.append("PASS case: ").append(name).append('\n'); }
         catch (Throwable e) { failure(name, e); }
         Bundle status = new Bundle();
@@ -118,9 +131,7 @@ public final class FileWorkspaceSmoke extends Instrumentation {
         failed++;
         report.append("FAIL ").append(name).append(": ").append(e.getClass().getName())
             .append(": ").append(e.getMessage()).append('\n');
-        StackTraceElement[] stack = e.getStackTrace();
-        for (int i = 0; i < Math.min(5, stack.length); i++) report.append("  at ").append(stack[i]).append('\n');
-        for (Throwable suppressed : e.getSuppressed()) report.append("  suppressed: ").append(suppressed).append('\n');
+        report.append(android.util.Log.getStackTraceString(e)).append('\n');
     }
 
     private void check(String message, boolean condition) {
@@ -157,6 +168,64 @@ public final class FileWorkspaceSmoke extends Instrumentation {
         if (!file.delete()) throw new IOException("Cannot remove smoke fixture " + file);
     }
     private static FileLocation loc(File file) { return FileLocation.local(file); }
+    private void aliasProtection() throws Exception {
+        File real = directory("alias-real"), folder = new File(real, "folder"); mkdir(folder);
+        File alias = new File(root, "alias-link"); Os.symlink(real.getPath(), alias.getPath());
+        File source = new File(folder, "note.txt"); put(source, TEXT);
+        FileLocation destination = loc(new File(alias, "folder"));
+        FileOperations operations = new FileOperations(local);
+        for (boolean move : new boolean[]{false, true}) {
+            rejects("copy/move refuses replacement through a parent alias", IOException.class,
+                () -> operations.transfer(one(loc(source)), destination, move, (s, t) -> FileOperations.Conflict.REPLACE, FileOperations.NONE));
+            content("alias operation preserves original bytes", local, loc(source), TEXT);
+            check("alias operation leaves no partial files", folder.list().length == 1);
+        }
+        operations.transfer(one(loc(source)), destination, false, (s, t) -> FileOperations.Conflict.KEEP_BOTH, FileOperations.NONE);
+        content("Keep both duplicates through a parent alias", local, loc(new File(folder, "note (1).txt")), TEXT);
+        content("Keep both preserves source", local, loc(source), TEXT);
+    }
+
+    private void socketCleanup() throws Exception {
+        File socket = new File(root, "stale.sock");
+        try (android.net.LocalSocket connection = new android.net.LocalSocket()) {
+            connection.bind(new android.net.LocalSocketAddress(socket.getAbsolutePath(), android.net.LocalSocketAddress.Namespace.FILESYSTEM));
+        }
+        check("a real filesystem socket remains after close", socket.exists());
+        com.termux.shared.errors.Error error = com.termux.shared.file.FileUtils.deleteSocketFile("workspace smoke", socket.getAbsolutePath(), false);
+        check("shared terminal cleanup succeeds", error == null);
+        check("shared terminal cleanup removes the stale socket", !socket.exists());
+    }
+    private void volumeStaging() throws Exception {
+        File fixtures = directory("volume-fixtures");
+        for (int i = 1; i <= 3; i++) copyFixture(fixtures, "test_rar_multivolume_single_file.part" + i + ".rar");
+        for (int i = 1; i <= 8; i++) copyFixture(fixtures, String.format(java.util.Locale.ROOT, "test_read_format_rar5_multiarchive.part%02d.rar", i));
+        com.termux.app.files.fs.ArchiveVolumeSmoke.run(isolated, fixtures);
+        check("all 40 volume staging scenarios completed", true);
+    }
+    private void copyFixture(File directory, String name) throws IOException {
+        put(new File(directory, name), bytes(getContext().getAssets().open(name)));
+    }
+    private void encryptedRar(String name) throws Exception {
+        File folder = directory(name);
+        File archive = new File(folder, "source.rar");
+        put(archive, bytes(getContext().getAssets().open("test_read_format_" + name + ".rar")));
+        byte[] original = bytes(new FileInputStream(archive));
+        ArchiveTools.Options options = new ArchiveTools.Options(); options.password = "password".toCharArray();
+        List<ArchiveTools.Entry> entries = ArchiveTools.list(archive, options, null);
+        check("encrypted metadata has four members", entries.size() == 4);
+        ArchiveTools.test(archive, options, null);
+        File output = new File(folder, "extracted"); ArchiveTools.extract(archive, output, null, options, null);
+        for (char letter = 'a'; letter <= 'd'; letter++) {
+            content("decrypted exact bytes " + letter, local, loc(new File(output, letter + ".txt")),
+                ("This is from " + letter + ".txt").getBytes(StandardCharsets.UTF_8));
+        }
+        options.password = "definitely-wrong".toCharArray(); options.replaceExisting = true;
+        rejects("wrong password fails before replacing", IOException.class,
+            () -> ArchiveTools.extract(archive, output, null, options, null));
+        content("wrong password preserves destination", local, loc(new File(output, "a.txt")), "This is from a.txt".getBytes(StandardCharsets.UTF_8));
+        check("source RAR remains byte identical", Arrays.equals(original, bytes(new FileInputStream(archive))));
+        Arrays.fill(options.password, '\0');
+    }
     private static List<FileLocation> one(FileLocation location) { return Collections.singletonList(location); }
     private static void put(File file, byte[] bytes) throws IOException {
         mkdir(file.getParentFile());
@@ -389,7 +458,10 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             FileStaging.Stage again = staging.open(member, FileOperations.NONE);
             try { content(format + " re-opened edit has saved bytes", local, loc(again.file), edited); }
             finally { staging.discard(again); }
-        } finally { staging.discard(stage); }
+        } finally {
+            FileStaging.Stage current = staging.restore(stage.file);
+            if (current != null) staging.discard(current);
+        }
         // Moving the last file out must leave the explicit parent and its empty sibling.
         FileLocation lastFile = fs.child(explicit, "雪🙂.txt");
         ops.transfer(one(lastFile), loc(output), true, REJECT, FileOperations.NONE);
@@ -432,6 +504,7 @@ public final class FileWorkspaceSmoke extends Instrumentation {
     private void saf() throws Exception {
         String token = UUID.randomUUID().toString();
         boolean begun = false;
+        FileLocation grantedTree = null;
         try {
             Bundle fixture = getTargetContext().getContentResolver().call(SmokeDocumentsProvider.CONTROL, "begin", token, null);
             begun = true;
@@ -439,6 +512,7 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             check("provider fixture executes outside target UID", fixture.getInt("provider_uid") != android.os.Process.myUid());
             check("provider fixture executes outside instrumented process", fixture.getInt("provider_pid") != android.os.Process.myPid());
             FileLocation tree = DocumentFileAccess.tree(Uri.parse(fixture.getString("tree")));
+            grantedTree = tree;
             RoutingFileAccess fs = routing(); FileOperations ops = new FileOperations(fs);
             check("DocumentFileAccess.tree resolves actual provider root", fs.stat(tree).directory && fs.list(tree).isEmpty());
             File base = directory("saf"), source = new File(base, "来源🙂");
@@ -446,6 +520,10 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             mkdir(new File(source, "空目录"));
             ops.transfer(one(loc(source)), tree, false, REJECT, FileOperations.NONE);
             FileLocation copied = fs.child(tree, source.getName());
+            android.net.Uri childTree = android.provider.DocumentsContract.buildTreeDocumentUri(
+                SmokeDocumentsProvider.AUTHORITY, android.provider.DocumentsContract.getDocumentId(android.net.Uri.parse(copied.uri)));
+            FileLocation narrower = DocumentFileAccess.tree(childTree);
+            check("SAF recognises a document reached through different tree roots", fs.contains(copied, narrower) && fs.contains(narrower, copied));
             content("local to SAF preserves nested Unicode bytes", fs, path(fs, copied, "子目录", "雪.txt"), TEXT);
             check("SAF copy preserves empty directories", fs.stat(fs.child(copied, "空目录")).directory);
             File output = new File(base, "out"); mkdir(output);
@@ -463,11 +541,46 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             ops.remove(one(copied), FileOperations.NONE);
             check("SAF recursive delete removes fixture subtree", fs.list(tree).isEmpty());
             safArchive(fs, tree, base);
+            safRarVolumes(fs, tree, base);
         } finally {
             if (begun) {
                 Bundle cleanup = getTargetContext().getContentResolver().call(SmokeDocumentsProvider.CONTROL, "end", token, null);
                 check("provider-owned fixture removed and grants revoked", cleanup != null && cleanup.getBoolean("removed"));
+                if (grantedTree != null) {
+                    FileLocation revoked = grantedTree;
+                    rejects("revoked SAF grant remains an error rather than missing storage", IOException.class,
+                        () -> new DocumentFileAccess(isolated).exists(revoked));
+                }
             }
+        }
+    }
+
+    private void safRarVolumes(RoutingFileAccess fs, FileLocation tree, File base) throws Exception {
+        for (boolean rar4 : new boolean[]{true, false}) {
+            String prefix = rar4 ? "test_rar_multivolume_single_file.part" : "test_read_format_rar5_multiarchive.part";
+            File folder = new File(base, rar4 ? "rar4-volumes" : "rar5-volumes"); mkdir(folder);
+            for (int i = 1; i <= (rar4 ? 3 : 8); i++) {
+                copyFixture(folder, prefix + (rar4 ? Integer.toString(i) : String.format(java.util.Locale.ROOT, "%02d", i)) + ".rar");
+            }
+            new FileOperations(fs).transfer(one(loc(folder)), tree, false, REJECT, FileOperations.NONE);
+            FileLocation remote = fs.child(tree, folder.getName());
+            FileLocation first = fs.child(remote, prefix + (rar4 ? "1" : "01") + ".rar");
+            FileStaging staging = new FileStaging(isolated, fs);
+            FileStaging.Stage stage = staging.openArchive(first, FileOperations.NONE);
+            try {
+                check("SAF stages every RAR volume", stage.file.getParentFile().list().length == (rar4 ? 3 : 8));
+                ArchiveTools.test(stage.file, options(), null);
+                List<FileEntry> entries = fs.list(ArchiveFileAccess.root(first));
+                check("SAF virtual RAR joins volume metadata", entries.size() == (rar4 ? 1 : 2));
+                for (FileEntry entry : entries) check("SAF virtual RAR reads complete plaintext", bytes(fs.read(entry.location)).length == entry.size);
+                if (rar4) {
+                    byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(bytes(fs.read(entries.get(0).location)));
+                    StringBuilder value = new StringBuilder();
+                    for (byte b : hash) value.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
+                    check("RAR4 joined plaintext matches pinned SHA256", value.toString().equals("ee16390e87152d7dec632ae2b37566da6135966e46b5166e6f40a1c827fa61ad"));
+                }
+            } finally { staging.discard(stage); }
+            new FileOperations(fs).remove(one(remote), FileOperations.NONE);
         }
     }
 
@@ -494,7 +607,10 @@ public final class FileWorkspaceSmoke extends Instrumentation {
             content("second save is readable using persisted origin", fs, third.origin, new byte[]{'2', '2', '2', '2'});
             check("saved SAF lease is recoverable", staging.recoverable().stream().anyMatch(s -> s.file.equals(stage.file)));
             check("second unchanged save is a no-op", !staging.commit(third, FileOperations.NONE));
-        } finally { staging.discard(stage); }
+        } finally {
+            FileStaging.Stage current = staging.restore(stage.file);
+            if (current != null) staging.discard(current);
+        }
         check("discard removes data and metadata lease", staging.restore(stage.file) == null && !stage.file.exists());
     }
 

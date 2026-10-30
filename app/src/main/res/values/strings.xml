@@ -3,12 +3,12 @@
 <!DOCTYPE resources [
     <!ENTITY TERMUX_PACKAGE_NAME "com.veyterm">
     <!ENTITY TERMUX_APP_NAME "VeyTerm">
-    <!ENTITY TERMUX_API_APP_NAME "Termux:API">
-    <!ENTITY TERMUX_BOOT_APP_NAME "Termux:Boot">
-    <!ENTITY TERMUX_FLOAT_APP_NAME "Termux:Float">
-    <!ENTITY TERMUX_STYLING_APP_NAME "Termux:Styling">
-    <!ENTITY TERMUX_TASKER_APP_NAME "Termux:Tasker">
-    <!ENTITY TERMUX_WIDGET_APP_NAME "Termux:Widget">
+    <!ENTITY TERMUX_API_APP_NAME "VeyTerm:API">
+    <!ENTITY TERMUX_BOOT_APP_NAME "VeyTerm:Boot">
+    <!ENTITY TERMUX_FLOAT_APP_NAME "VeyTerm:Float">
+    <!ENTITY TERMUX_STYLING_APP_NAME "VeyTerm:Styling">
+    <!ENTITY TERMUX_TASKER_APP_NAME "VeyTerm:Tasker">
+    <!ENTITY TERMUX_WIDGET_APP_NAME "VeyTerm:Widget">
     ]>
 
 <resources>
@@ -131,9 +131,9 @@
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">&TERMUX_APP_NAME; requires
         \"Display over other apps\" permission to start terminal sessions from background on Android >= 10.
         Grants it from Settings -> Apps -> &TERMUX_APP_NAME; -> Advanced</string>
-    <string name="error_termux_service_invalid_execution_command_runner">Invalid execution command runner to TermuxService: `%1$s`</string>
-    <string name="error_termux_service_unsupported_execution_command_runner">Unsupported execution command runner to TermuxService: `%1$s`</string>
-    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Unsupported execution command shell create mode to TermuxService: `%1$s`</string>
+    <string name="error_termux_service_invalid_execution_command_runner">Invalid execution command runner for &TERMUX_APP_NAME;: `%1$s`</string>
+    <string name="error_termux_service_unsupported_execution_command_runner">Unsupported execution command runner for &TERMUX_APP_NAME;: `%1$s`</string>
+    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Unsupported shell creation mode for &TERMUX_APP_NAME;: `%1$s`</string>
     <string name="error_termux_service_execution_command_shell_name_unset">Shell name not set but `%1$s` shell create mode passed</string>
 
 
@@ -154,8 +154,8 @@
 
 
     <!-- Miscellaneous -->
-    <string name="error_termux_service_start_failed_general">Failed to start TermuxService. Check logcat for exception message.</string>
-    <string name="error_termux_service_start_failed_bg">Failed to start TermuxService while app is in background due to android bg restrictions.</string>
+    <string name="error_termux_service_start_failed_general">Failed to start &TERMUX_APP_NAME;. Check logcat for the error details.</string>
+    <string name="error_termux_service_start_failed_bg">Android background restrictions prevented &TERMUX_APP_NAME; from starting.</string>
 
 
 

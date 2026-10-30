@@ -223,6 +223,7 @@ final class TermuxInstaller {
                         throw new RuntimeException("Bootstrap is incomplete or contains executables built for another app");
                     }
                     BootstrapTransaction.markHealthy(TERMUX_STAGING_PREFIX_DIR);
+                    com.termux.app.core.VeyTermWelcome.refresh(TERMUX_STAGING_PREFIX_DIR, true);
 
                     Logger.logInfo(LOG_TAG, "Moving termux prefix staging to prefix directory.");
 
@@ -391,6 +392,8 @@ final class TermuxInstaller {
     }
 
     private static void installDefaultShellConfigs(Activity activity) {
+        try { com.termux.app.core.VeyTermWelcome.refresh(TERMUX_PREFIX_DIR, false); }
+        catch (java.io.IOException error) { Logger.logWarn(LOG_TAG, "Could not refresh VeyTerm welcome message: " + error.getMessage()); }
         updateBundledRepository(activity);
         installDefaultShellConfig(activity, "shell/veyterm.zshrc", TERMUX_HOME_DIR_PATH + "/.zshrc");
         installDefaultShellConfig(activity, "shell/veyterm.bashrc", TERMUX_HOME_DIR_PATH + "/.bashrc");

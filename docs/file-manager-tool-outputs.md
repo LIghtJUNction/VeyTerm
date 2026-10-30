@@ -1,12 +1,13 @@
 # File tool output directories and standalone format entry points
 
-## Parent launch contract
+## Launch contract
 
 `ApkToolsActivity` and `DecompiledJavaActivity` accept the String Intent extra
 `file_output_directory`. Its value must be an absolute, app-writable local
 directory: the other local pane when writable, otherwise VeyTerm Home
-(`getFilesDir()/home`). The parent supplies it only for non-local staged sources.
-This change does not modify `FileTools`, the filesystem adapters or lease engine.
+(`getFilesDir()/home`). `FileTools` supplies it for non-local staged sources and retains the lease until
+the child Activity returns. Source edits write back through the storage adapter;
+new exports remain in the selected local destination.
 
 When present, the extra changes the parent directory of every user-facing new
 output while retaining the existing output basename. When absent, borrowed local

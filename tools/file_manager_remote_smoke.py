@@ -402,7 +402,7 @@ def run_host(args):
         # Never echo raw am/ADB output: third-party exceptions could include credentials.
         lines = []
         for line in output.splitlines():
-            if re.fullmatch(r'INSTRUMENTATION_(?:STATUS|RESULT): (?:name|assertions|error|errors)=[A-Za-z0-9_./:@,\[\] -]*', line):
+            if re.fullmatch(r'INSTRUMENTATION_(?:STATUS|RESULT): (?:name|assertions|error|errors|shortMsg)=[A-Za-z0-9_./:@,\[\] -]*', line) or re.fullmatch(r'INSTRUMENTATION_CODE: -?[0-9]+', line):
                 lines.append(line)
         print('\n'.join(lines), flush=True)
         if not re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M) or 'INSTRUMENTATION_RESULT: errors=[]' not in output:

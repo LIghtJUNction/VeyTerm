@@ -85,6 +85,16 @@
             android:src="@drawable/ic_add" />
 
         <ImageButton
+            android:id="@+id/top_files_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/action_open_files"
+            android:padding="14dp"
+            android:src="@drawable/ic_folder"
+            app:tint="@color/vey_accent" />
+
+        <ImageButton
             android:id="@+id/terminal_actions_button"
             android:layout_width="48dp"
             android:layout_height="48dp"

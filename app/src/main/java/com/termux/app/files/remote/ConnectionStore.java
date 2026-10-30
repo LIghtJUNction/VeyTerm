@@ -13,6 +13,20 @@ import java.util.*;
 
 /** AES-GCM encrypted records in noBackupFilesDir; no plaintext preferences or credential-bearing URIs. API 23+. */
 public final class ConnectionStore {
+    /** Logical hierarchy across two saved records for the same authenticated server. No credentials are exposed. */
+    public static boolean contains(RemoteFiles.Connection directory, String directoryPath,
+                                   RemoteFiles.Connection location, String locationPath) {
+        if (directory.protocol != location.protocol || directory.port != location.port
+            || !directory.host.equalsIgnoreCase(location.host) || directory.allowInsecure != location.allowInsecure
+            || !directory.username.equals(location.username) || !directory.password.equals(location.password)
+            || !directory.domain.equals(location.domain) || !directory.hostKeySha256.equals(location.hostKeySha256)) return false;
+        String base = serverPath(directory, directoryPath), other = serverPath(location, locationPath);
+        return base.equals(other) || other.startsWith(base.equals("/") ? base : base + "/");
+    }
+    private static String serverPath(RemoteFiles.Connection connection, String path) {
+        path = RemoteFiles.path(path);
+        return connection.root.equals("/") ? path : path.equals("/") ? connection.root : connection.root + path;
+    }
     private static final String ALIAS="veyterm.remote.connections.v1";
     private final File directory;
     public ConnectionStore(Context context) throws IOException {

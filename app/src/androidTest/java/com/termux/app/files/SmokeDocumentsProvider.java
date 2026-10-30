@@ -160,7 +160,7 @@ public final class SmokeDocumentsProvider extends DocumentsProvider {
         File renamed = new File(original.getParentFile(), displayName);
         if (renamed.exists() || !original.renameTo(renamed)) throw new FileNotFoundException("Rename refused");
         // Invalidate the old path and any directory descendants. New occupants get fresh IDs.
-        versions.keySet().removeIf(path -> path.equals(original.getPath()) || path.startsWith(original.getPath() + "/"));
+        forgetVersions(original);
         versions.remove(renamed.getPath());
         return id(renamed); // Path IDs deliberately change, matching renameDocument's new-ID contract.
     }
@@ -170,7 +170,17 @@ public final class SmokeDocumentsProvider extends DocumentsProvider {
         File target = file(documentId);
         try { remove(target); } catch (IOException e) { throw missing(e); }
         synchronized (this) {
-            versions.keySet().removeIf(path -> path.equals(target.getPath()) || path.startsWith(target.getPath() + "/"));
+            forgetVersions(target);
+        }
+    }
+
+    private void forgetVersions(File original) {
+        // This provider runs in the test APK's own UID, outside the target's desugared runtime.
+        java.util.Iterator<String> paths = versions.keySet().iterator();
+        String prefix = original.getPath() + "/";
+        while (paths.hasNext()) {
+            String path = paths.next();
+            if (path.equals(original.getPath()) || path.startsWith(prefix)) paths.remove();
         }
     }
 
